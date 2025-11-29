@@ -1,0 +1,256 @@
+{
+  "title": "Modern 2-Bedroom Apartment",
+  "year_built": 2021,
+  "area": "85 m^2",
+  "bedrooms": "2 beds",
+  "bathrooms": "2 baths",
+  "floor": "5th",
+  "price": "KSh 15000.00",
+  "location": "Downtown, Nairobi",
+  "property_type": "Apartment",
+  "features": ["balcony", "gym", "parking", "swimming pool"]
+}
+
+
+
+
+property-listing/
+│
+├── frontend/                          # Next.js + Tailwind + TypeScript frontend
+│   ├── public/
+│   │   ├── favicon.ico
+│   │   └── images/
+│   │       ├── placeholder.jpg
+│   │       └── logo.png
+│   │
+│   ├── src/
+│   │   ├── app/                      # Next.js App Router (like cmd/api)
+│   │   │   ├── layout.tsx            # Root layout (server config)
+│   │   │   ├── page.tsx              # Home page
+│   │   │   ├── globals.css
+│   │   │   ├── error.tsx             # Global error boundary
+│   │   │   ├── loading.tsx           # Global loading state
+│   │   │   ├── not-found.tsx         # 404 page
+│   │   │   │
+│   │   │   ├── (auth)/               # Auth route group
+│   │   │   │   ├── layout.tsx        # Auth layout
+│   │   │   │   ├── login/
+│   │   │   │   │   ├── page.tsx
+│   │   │   │   │   └── loading.tsx
+│   │   │   │   └── register/
+│   │   │   │       ├── page.tsx
+│   │   │   │       └── loading.tsx
+│   │   │   │
+│   │   │   ├── (protected)/          # Protected route group
+│   │   │   │   ├── layout.tsx        # Auth middleware wrapper
+│   │   │   │   │
+│   │   │   │   ├── dashboard/
+│   │   │   │   │   ├── page.tsx
+│   │   │   │   │   └── loading.tsx
+│   │   │   │   │
+│   │   │   │   ├── profile/
+│   │   │   │   │   ├── page.tsx
+│   │   │   │   │   └── edit/
+│   │   │   │   │       └── page.tsx
+│   │   │   │   │
+│   │   │   │   └── properties/
+│   │   │   │       ├── page.tsx          # List properties
+│   │   │   │       ├── loading.tsx
+│   │   │   │       ├── create/
+│   │   │   │       │   └── page.tsx      # Create property
+│   │   │   │       └── [id]/
+│   │   │   │           ├── page.tsx      # View property
+│   │   │   │           ├── loading.tsx
+│   │   │   │           ├── error.tsx
+│   │   │   │           └── edit/
+│   │   │   │               └── page.tsx  # Edit property
+│   │   │   │
+│   │   │   └── api/                  # Optional API routes
+│   │   │       ├── health/
+│   │   │       │   └── route.ts
+│   │   │       └── auth/
+│   │   │           └── refresh/
+│   │   │               └── route.ts
+│   │   │
+│   │   ├── lib/                      # Internal packages (like internal/)
+│   │   │   ├── api/                  # API client setup
+│   │   │   │   ├── client.ts         # Axios instance
+│   │   │   │   ├── interceptors.ts   # Request/response interceptors
+│   │   │   │   └── endpoints.ts      # API endpoint constants
+│   │   │   │
+│   │   │   ├── auth/                 # Auth utilities
+│   │   │   │   ├── token.ts          # Token management
+│   │   │   │   ├── session.ts        # Session handling
+│   │   │   │   └── permissions.ts    # Permission checks
+│   │   │   │
+│   │   │   ├── validator/            # Validation (like internal/validator)
+│   │   │   │   ├── validator.ts      # Core validation
+│   │   │   │   ├── rules.ts          # Validation rules
+│   │   │   │   └── schemas.ts        # Validation schemas
+│   │   │   │
+│   │   │   ├── utils/                # Utilities
+│   │   │   │   ├── formatters.ts     # Data formatters
+│   │   │   │   ├── helpers.ts        # Helper functions
+│   │   │   │   ├── constants.ts      # App constants
+│   │   │   │   └── cn.ts             # Class name utility
+│   │   │   │
+│   │   │   └── errors/               # Error handling
+│   │   │       ├── api-error.ts      # API error class
+│   │   │       ├── error-handler.ts  # Error handler
+│   │   │       └── error-messages.ts # Error message constants
+│   │   │
+│   │   ├── services/                 # Data layer (like internal/data)
+│   │   │   ├── models.ts             # Base model setup
+│   │   │   ├── properties.ts         # Property service (CRUD)
+│   │   │   ├── users.ts              # User service
+│   │   │   ├── tokens.ts             # Token service
+│   │   │   └── filters.ts            # Filtering/pagination
+│   │   │
+│   │   ├── components/               # UI Components
+│   │   │   ├── common/               # Reusable components
+│   │   │   │   ├── Button.tsx
+│   │   │   │   ├── Input.tsx
+│   │   │   │   ├── Textarea.tsx
+│   │   │   │   ├── Select.tsx
+│   │   │   │   ├── Card.tsx
+│   │   │   │   ├── Modal.tsx
+│   │   │   │   ├── Spinner.tsx
+│   │   │   │   ├── Alert.tsx
+│   │   │   │   ├── Badge.tsx
+│   │   │   │   ├── Pagination.tsx
+│   │   │   │   ├── ErrorBoundary.tsx
+│   │   │   │   └── EmptyState.tsx
+│   │   │   │
+│   │   │   ├── layout/               # Layout components
+│   │   │   │   ├── Header.tsx
+│   │   │   │   ├── Footer.tsx
+│   │   │   │   ├── Sidebar.tsx
+│   │   │   │   ├── Navigation.tsx
+│   │   │   │   └── Container.tsx
+│   │   │   │
+│   │   │   ├── properties/           # Property components
+│   │   │   │   ├── PropertyCard.tsx
+│   │   │   │   ├── PropertyList.tsx
+│   │   │   │   ├── PropertyDetail.tsx
+│   │   │   │   ├── PropertyForm.tsx
+│   │   │   │   ├── PropertyFilters.tsx
+│   │   │   │   ├── PropertySearch.tsx
+│   │   │   │   ├── PropertyGallery.tsx
+│   │   │   │   └── PropertyStats.tsx
+│   │   │   │
+│   │   │   ├── auth/                 # Auth components
+│   │   │   │   ├── LoginForm.tsx
+│   │   │   │   ├── RegisterForm.tsx
+│   │   │   │   └── AuthGuard.tsx
+│   │   │   │
+│   │   │   └── providers/            # Context providers
+│   │   │       ├── AuthProvider.tsx
+│   │   │       ├── QueryProvider.tsx
+│   │   │       └── ThemeProvider.tsx
+│   │   │
+│   │   ├── hooks/                    # Custom hooks
+│   │   │   ├── useAuth.ts
+│   │   │   ├── useProperties.ts
+│   │   │   ├── useApi.ts
+│   │   │   ├── useDebounce.ts
+│   │   │   ├── useLocalStorage.ts
+│   │   │   ├── usePagination.ts
+│   │   │   └── useToast.ts
+│   │   │
+│   │   ├── context/                  # React Context
+│   │   │   ├── AuthContext.tsx
+│   │   │   ├── PropertyContext.tsx
+│   │   │   └── AppContext.tsx
+│   │   │
+│   │   └── types/                    # Type definitions
+│   │       ├── index.ts              # Main type exports
+│   │       ├── property.ts           # Property types
+│   │       ├── user.ts               # User types
+│   │       ├── auth.ts               # Auth types
+│   │       ├── api.ts                # API types
+│   │       └── common.ts             # Common/shared types
+│   │
+│   ├── config/                       # Configuration files
+│   │   ├── site.ts                   # Site configuration
+│   │   └── env.ts                    # Environment config
+│   │
+│   ├── .env.local                    # Environment variables (gitignored)
+│   ├── .env.example                  # Example env file
+│   ├── .gitignore
+│   ├── next.config.js                # Next.js config
+│   ├── tailwind.config.ts            # Tailwind config
+│   ├── postcss.config.js             # PostCSS config
+│   ├── tsconfig.json                 # TypeScript configuration
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── .eslintrc.json                # ESLint config
+│   ├── .prettierrc                   # Prettier config
+│   └── README.md
+│
+└── backend/                          # Go API (Let's Go Further style)
+    ├── cmd/
+    │   └── api/
+    │       ├── main.go               # Application entry point
+    │       ├── server.go             # HTTP server setup
+    │       ├── routes.go             # API routes
+    │       ├── handlers.go           # Common handlers
+    │       ├── properties.go         # Property handlers
+    │       ├── users.go              # User handlers
+    │       ├── tokens.go             # Token handlers
+    │       ├── healthcheck.go        # Health check handler
+    │       ├── middleware.go         # Middleware functions
+    │       ├── context.go            # Request context helpers
+    │       ├── errors.go             # Error response helpers
+    │       └── helpers.go            # Response helpers
+    │
+    ├── internal/
+    │   ├── data/
+    │   │   ├── models.go             # Models struct
+    │   │   ├── properties.go         # Property model & DB methods
+    │   │   ├── users.go              # User model & DB methods
+    │   │   ├── tokens.go             # Token model & DB methods
+    │   │   ├── filters.go            # Filtering/pagination helpers
+    │   │   └── runtime.go            # Runtime info
+    │   │
+    │   ├── validator/
+    │   │   └── validator.go          # Validation helpers
+    │   │
+    │   ├── mailer/
+    │   │   ├── mailer.go             # Email sender
+    │   │   └── templates/
+    │   │       ├── user_welcome.tmpl
+    │   │       ├── token_activation.tmpl
+    │   │       └── token_password_reset.tmpl
+    │   │
+    │   └── jsonlog/
+    │       └── jsonlog.go            # Structured JSON logger
+    │
+    ├── migrations/
+    │   ├── 000001_create_properties_table.up.sql
+    │   ├── 000001_create_properties_table.down.sql
+    │   ├── 000002_add_properties_check_constraints.up.sql
+    │   ├── 000002_add_properties_check_constraints.down.sql
+    │   ├── 000003_create_users_table.up.sql
+    │   ├── 000003_create_users_table.down.sql
+    │   ├── 000004_create_tokens_table.up.sql
+    │   ├── 000004_create_tokens_table.down.sql
+    │   ├── 000005_add_properties_indexes.up.sql
+    │   ├── 000005_add_properties_indexes.down.sql
+    │   ├── 000006_create_permissions.up.sql
+    │   └── 000006_create_permissions.down.sql
+    │
+    ├── remote/
+    │   └── setup/
+    │       ├── 01.sh                 # Server setup script
+    │       └── 02.sh                 # Application setup script
+    │
+    ├── bin/
+    │   └── (compiled binaries)
+    │
+    ├── go.mod
+    ├── go.sum
+    ├── Makefile
+    ├── .env
+    ├── .env.example
+    ├── .gitignore
+    └── README.md

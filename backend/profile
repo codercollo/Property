@@ -1,0 +1,2 @@
+export PROPERTY_DB_DSN="postgres://property:c%40ndyBAR111@localhost/property?sslmode=disable"
+"
