@@ -17,19 +17,25 @@ func (app *application) routes() http.Handler {
 	//Set acustom 405 handler
 	router.MethodNotAllowed = http.HandlerFunc(app.methodNotAllowedResponse)
 
-	//Register GET and POST endpoints
+	//Register HEALTHCHECK endpoints
 	router.HandlerFunc(http.MethodGet, "/v1/healthcheck", app.healthcheckHandler)
 
-	router.HandlerFunc(http.MethodGet, "/v1/properties", app.listPropertiesHandler)
-	router.HandlerFunc(http.MethodPost, "/v1/properties", app.createPropertyHandler)
-	router.HandlerFunc(http.MethodGet, "/v1/properties/:id", app.showPropertyHandler)
-	router.HandlerFunc(http.MethodPatch, "/v1/properties/:id", app.updatePropertyHandler)
-	router.HandlerFunc(http.MethodDelete, "/v1/properties/:id", app.deletePropertyHandler)
+	//Register PROPERTIES endpoints
+	router.HandlerFunc(http.MethodGet, "/v1/properties", app.requirePermission("properties:read", app.listPropertiesHandler))
+	router.HandlerFunc(http.MethodPost, "/v1/properties", app.requirePermission("properties:write", app.createPropertyHandler))
+	router.HandlerFunc(http.MethodGet, "/v1/properties/:id", app.requirePermission("properties:read", app.showPropertyHandler))
+	router.HandlerFunc(http.MethodPatch, "/v1/properties/:id", app.requirePermission("properties:write", app.updatePropertyHandler))
+	router.HandlerFunc(http.MethodDelete, "/v1/properties/:id", app.requirePermission("properties:delete", app.deletePropertyHandler))
+	router.HandlerFunc(http.MethodPost, "/v1/properties/:id/feature", app.requirePermission("properties:feature", app.featurePropertyHandler))
+	router.HandlerFunc(http.MethodDelete, "/v1/properties/:id/feature", app.requirePermission("properties:feature", app.unfeaturePropertyHandler))
 
-	//Register USER endpoints
+	//Register USER & Authentication endpoints
 	router.HandlerFunc(http.MethodPost, "/v1/users", app.registerUserHandler)
+	router.HandlerFunc(http.MethodPatch, "/v1/users/:id/role", app.requirePermission("users:manage", app.updateUserRoleHandler))
+	router.HandlerFunc(http.MethodPut, "/v1/users/activated", app.activateUserHandler)
+	router.HandlerFunc(http.MethodPost, "/v1/tokens/authentication", app.createAuthenticationTokenHandler)
 
 	//Return configures router
-	return app.recoverPanic(app.rateLimit(router))
+	return app.recoverPanic(app.rateLimit(app.authenticate(router)))
 
 }

@@ -2,6 +2,7 @@ package data
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"errors"
 	"time"
@@ -10,17 +11,20 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// Custom ErrDuplicateEmail Error
+// Custom errors
 var (
 	ErrDuplicateEmail = errors.New("duplicate email")
 )
 
-// UserModel struct to wrap the connection pool
+// AnonymousUser represents an unauthenticated user
+var AnonymousUser = &User{}
+
+// UserModel wraps the database connection
 type UserModel struct {
 	DB *sql.DB
 }
 
-// User represents an individual user. Password and Version are hidden in JSON
+// User represents an individual user
 type User struct {
 	ID        int64     `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
@@ -28,6 +32,7 @@ type User struct {
 	Email     string    `json:"email"`
 	Password  password  `json:"-"`
 	Activated bool      `json:"activated"`
+	Role      string    `json:"role"` // NEW: user role
 	Version   int       `json:"-"`
 }
 
@@ -37,7 +42,7 @@ type password struct {
 	hash      []byte
 }
 
-// Set hashes a plaintext password and store both plaintext and hash
+// Set hashes a plaintext password and stores both plaintext and hash
 func (p *password) Set(plaintextPassword string) error {
 	hash, err := bcrypt.GenerateFromPassword([]byte(plaintextPassword), 12)
 	if err != nil {
@@ -49,7 +54,7 @@ func (p *password) Set(plaintextPassword string) error {
 	return nil
 }
 
-// Matches checks if a plaintext password matches the stores hash
+// Matches checks if a plaintext password matches the stored hash
 func (p *password) Matches(plaintextPassword string) (bool, error) {
 	err := bcrypt.CompareHashAndPassword(p.hash, []byte(plaintextPassword))
 	if err != nil {
@@ -63,20 +68,27 @@ func (p *password) Matches(plaintextPassword string) (bool, error) {
 	return true, nil
 }
 
-// ValidateEmail checks email presence and format.
+// ValidateEmail checks email presence and format
 func ValidateEmail(v *validator.Validator, email string) {
 	v.Check(email != "", "email", "must be provided")
 	v.Check(validator.Matches(email, validator.EmailRX), "email", "must be a valid email address")
 }
 
-// ValidatePasswordPlaintext checks password presence and length.
+// ValidatePasswordPlaintext checks password presence and length
 func ValidatePasswordPlaintext(v *validator.Validator, password string) {
 	v.Check(password != "", "password", "must be provided")
 	v.Check(len(password) >= 8, "password", "must be at least 8 bytes long")
 	v.Check(len(password) <= 72, "password", "must not be more than 72 bytes long")
 }
 
-// ValidateUser validates name, email, and password; ensures password hash exists.
+// ValidateRole checks that the role is one of the allowed values
+func ValidateRole(v *validator.Validator, role string) {
+	validRoles := []string{"user", "agent", "admin"}
+	v.Check(role != "", "role", "must be provided")
+	v.Check(validator.In(role, validRoles...), "role", "must be one of: user, agent, admin")
+}
+
+// ValidateUser validates name, email, password, and role
 func ValidateUser(v *validator.Validator, user *User) {
 	v.Check(user.Name != "", "name", "must be provided")
 	v.Check(len(user.Name) <= 500, "name", "must not be more than 500 bytes long")
@@ -90,14 +102,15 @@ func ValidateUser(v *validator.Validator, user *User) {
 	if user.Password.hash == nil {
 		panic("missing password hash for user")
 	}
+
+	ValidateRole(v, user.Role)
 }
 
-// Insert add a new user and populates ID, createAt, and Version.
-// Returns ErrDuplicateEmail if email exists
+// Insert adds a new user and populates ID, CreatedAt, and Version
 func (m UserModel) Insert(user *User) error {
 	query := `
-INSERT INTO users (name, email, password_hash, activated)
-VALUES ($1, $2, $3, $4)
+INSERT INTO users (name, email, password_hash, activated, role)
+VALUES ($1, $2, $3, $4, $5)
 RETURNING id, created_at, version`
 
 	args := []interface{}{
@@ -105,6 +118,7 @@ RETURNING id, created_at, version`
 		user.Email,
 		user.Password.hash,
 		user.Activated,
+		user.Role,
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -121,10 +135,50 @@ RETURNING id, created_at, version`
 	return nil
 }
 
-// GetByEmail fetches a user by email. Returns ErrRecordNotFound if no user exists
+// GetByID fetches a user by their ID
+func (m UserModel) GetByID(id int64) (*User, error) {
+	//SQL query to fetch user fields
+	query := `
+SELECT id, created_at, name, email, password_hash, activated, role, version
+FROM users
+WHERE id = $1`
+
+	var user User
+
+	//Create a 3-second timeout context
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	//Execute query and scan the result into the user struct
+	err := m.DB.QueryRowContext(ctx, query, id).Scan(
+		&user.ID,
+		&user.CreatedAt,
+		&user.Name,
+		&user.Email,
+		&user.Password.hash,
+		&user.Activated,
+		&user.Role,
+		&user.Version,
+	)
+
+	//Handle query errors
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrUserNotFound
+		default:
+			return nil, err
+		}
+	}
+
+	//Return the fetched user
+	return &user, nil
+}
+
+// GetByEmail fetches a user by email
 func (m UserModel) GetByEmail(email string) (*User, error) {
 	query := `
-SELECT id, created_at, name, email, password_hash, activated, version
+SELECT id, created_at, name, email, password_hash, activated, role, version
 FROM users
 WHERE email = $1`
 
@@ -140,6 +194,7 @@ WHERE email = $1`
 		&user.Email,
 		&user.Password.hash,
 		&user.Activated,
+		&user.Role,
 		&user.Version,
 	)
 
@@ -155,13 +210,12 @@ WHERE email = $1`
 	return &user, nil
 }
 
-// Update modeifies an existing user and increments version .
-// Checks for email uniqueness and edit conflicts
+// Update modifies an existing user and increments version
 func (m UserModel) Update(user *User) error {
 	query := `
 UPDATE users
-SET name = $1, email = $2, password_hash = $3, activated = $4, version = version + 1
-WHERE id = $5 AND version = $6
+SET name = $1, email = $2, password_hash = $3, activated = $4, role = $5, version = version + 1
+WHERE id = $6 AND version = $7
 RETURNING version`
 
 	args := []interface{}{
@@ -169,6 +223,7 @@ RETURNING version`
 		user.Email,
 		user.Password.hash,
 		user.Activated,
+		user.Role,
 		user.ID,
 		user.Version,
 	}
@@ -188,5 +243,51 @@ RETURNING version`
 	}
 
 	return nil
+}
 
+// GetForToken looks up a user by token hash, scope, and expiry
+func (m UserModel) GetForToken(tokenScope, tokenPlaintext string) (*User, error) {
+	tokenHash := sha256.Sum256([]byte(tokenPlaintext))
+
+	query := `
+SELECT users.id, users.created_at, users.name, users.email, users.password_hash,
+       users.activated, users.role, users.version
+FROM users
+INNER JOIN tokens ON users.id = tokens.user_id
+WHERE tokens.hash = $1
+  AND tokens.scope = $2
+  AND tokens.expiry > $3`
+
+	args := []interface{}{tokenHash[:], tokenScope, time.Now()}
+
+	var user User
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	err := m.DB.QueryRowContext(ctx, query, args...).Scan(
+		&user.ID,
+		&user.CreatedAt,
+		&user.Name,
+		&user.Email,
+		&user.Password.hash,
+		&user.Activated,
+		&user.Role,
+		&user.Version,
+	)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrUserNotFound
+		default:
+			return nil, err
+		}
+	}
+
+	return &user, nil
+}
+
+// IsAnonymous checks if a user is the AnonymousUser
+func (u *User) IsAnonymous() bool {
+	return u == AnonymousUser
 }

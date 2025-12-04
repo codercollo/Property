@@ -14,14 +14,18 @@ var (
 
 // Models wraps all model types
 type Models struct {
-	Properties PropertyModel
-	User       UserModel
+	Properties  PropertyModel
+	Users       UserModel
+	Tokens      TokenModel
+	Permissions PermissionModel
 }
 
 // NewModels initializes and returns a Models struct with the given DB connection
 func NewModels(db *sql.DB) Models {
 	return Models{
-		Properties: PropertyModel{DB: db},
-		User:       UserModel{DB: db},
+		Properties:  PropertyModel{DB: db},
+		Users:       UserModel{DB: db},
+		Tokens:      TokenModel{DB: db},
+		Permissions: PermissionModel{DB: db},
 	}
 }

@@ -19,7 +19,7 @@ type envelope map[string]interface{}
 
 // Extracts and validates the "id" URL parameter from the request
 
-func (app application) readIDParam(r *http.Request) (int64, error) {
+func (app *application) readIDParam(r *http.Request) (int64, error) {
 	//Get URL parameters from request context
 	params := httprouter.ParamsFromContext(r.Context())
 
@@ -149,4 +149,37 @@ func (app *application) readInt(qs url.Values, key string, defaultValue int, v *
 		return defaultValue
 	}
 	return i
+}
+
+// background runs the given function in a safe background goroutine
+func (app *application) background(fn func()) {
+
+	//Increament the WaitGroup counter
+	app.wg.Add(1)
+
+	go func() {
+
+		//Lauch the background goroutine
+		defer app.wg.Done()
+
+		//Recover and log any panic in the goroutine
+		defer func() {
+			if err := recover(); err != nil {
+				app.logger.PrintError(fmt.Errorf("%s", err), nil)
+			}
+		}()
+		//Execute the provided function
+		fn()
+	}()
+}
+
+// invalidAuthenticationTokenResponse sends a 401 response when the auth token is missing or invalid
+func (app *application) invalidAuthenticationTokenResponse(w http.ResponseWriter, r *http.Request) {
+	//Tell client authentication must use a Bearer token
+	w.Header().Set("WWW-Authenticate", "Bearer")
+
+	//Return standardized 401 Unauthorized error
+	message := "invalid or missing authentication token"
+	app.errorResponse(w, r, http.StatusUnauthorized, message)
+
 }

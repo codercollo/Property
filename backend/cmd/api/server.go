@@ -29,6 +29,7 @@ func (app *application) serve() error {
 		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 		s := <-quit
 
+		//Log received shutdown signal
 		app.logger.PrintInfo("shutting down server", map[string]string{
 			"signal": s.String(),
 		})
@@ -36,7 +37,21 @@ func (app *application) serve() error {
 		// Graceful shutdown with timeout.
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		shutdownError <- srv.Shutdown(ctx)
+
+		//Shutdown server; report error if any
+		err := srv.Shutdown(ctx)
+		if err != nil {
+			shutdownError <- err
+		}
+
+		//Log that we're waiting for background goroutines
+		app.logger.PrintInfo("completing background tasks", map[string]string{
+			"addr": srv.Addr,
+		})
+
+		//Wait for all background tasks to finish, then signal clean shutdown
+		app.wg.Wait()
+		shutdownError <- nil
 	}()
 
 	app.logger.PrintInfo("starting server", map[string]string{

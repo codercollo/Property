@@ -14,20 +14,21 @@ import (
 // Property represents a real estate listing returned in API responses
 // Fields use JSON tags with omitempty to hide zero-value data/ when fields are empty
 type Property struct {
-	ID           int64     `json:"id"`
-	CreatedAt    time.Time `json:"-"`
-	Title        string    `json:"title,"`
-	YearBuilt    int32     `json:"year_built,omitempty"`
-	Area         Area      `json:"area,omitempty"`
-	Bedrooms     Bedrooms  `json:"bedrooms,omitempty"`
-	Bathrooms    Bathrooms `json:"bathrooms,omitempty"`
-	Floor        Floor     `json:"floor,omitempty"`
-	Price        Price     `json:"price,omitempty"`
-	Location     string    `json:"location,"`
-	PropertyType string    `json:"property_type,"`
-	Features     []string  `json:"features,omitempty"`
-	Images       []string  `json:"images,omitempty"`
-	Version      int32     `json:"version"`
+	ID           int64      `json:"id"`
+	CreatedAt    time.Time  `json:"-"`
+	Title        string     `json:"title,"`
+	YearBuilt    int32      `json:"year_built,omitempty"`
+	Area         Area       `json:"area,omitempty"`
+	Bedrooms     Bedrooms   `json:"bedrooms,omitempty"`
+	Bathrooms    Bathrooms  `json:"bathrooms,omitempty"`
+	Floor        Floor      `json:"floor,omitempty"`
+	Price        Price      `json:"price,omitempty"`
+	Location     string     `json:"location,"`
+	PropertyType string     `json:"property_type,"`
+	Features     []string   `json:"features,omitempty"`
+	Images       []string   `json:"images,omitempty"`
+	FeaturedAt   *time.Time `json:"featured_at,omitempty"`
+	Version      int32      `json:"version"`
 }
 
 // ValidateProperty checks that all fields of a Property are valid
@@ -322,4 +323,64 @@ func (p PropertyModel) Delete(id int64) error {
 
 	return nil
 
+}
+
+// Feature marks a property as featured by setting FeaturedAt to now
+func (p PropertyModel) Feature(id int64) error {
+	//invalid ID
+	if id < 1 {
+		return ErrPropertyNotFound
+	}
+
+	//SQL to update FeaturedAt and increment version
+	query := `
+		UPDATE properties
+		SET featured_at = NOW(), version = version + 1
+		WHERE id = $1
+		RETURNING version
+	`
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	var newVersion int32
+
+	err := p.DB.QueryRowContext(ctx, query, id).Scan(&newVersion)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrPropertyNotFound
+		}
+		return err
+	}
+
+	return nil
+}
+
+// Unfeature clears FeaturedAt to mark a property as not featured
+func (p PropertyModel) Unfeature(id int64) error {
+	//invalid property
+	if id < 1 {
+		return ErrPropertyNotFound
+	}
+
+	//SQL to clear FeaturedAt and increment version
+	query := `
+		UPDATE properties
+		SET featured_at = NULL, version = version + 1
+		WHERE id = $1
+		RETURNING version
+	`
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	var newVersion int32
+
+	err := p.DB.QueryRowContext(ctx, query, id).Scan(&newVersion)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrPropertyNotFound
+		}
+		return err
+	}
+
+	return nil
 }

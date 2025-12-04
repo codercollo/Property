@@ -1,3 +1,8 @@
+-- Drop featured_at column
+ALTER TABLE properties
+DROP COLUMN IF EXISTS featured_at;
+
+-- Drop all constraints
 ALTER TABLE properties DROP CONSTRAINT IF EXISTS properties_area_check;
 ALTER TABLE properties DROP CONSTRAINT IF EXISTS properties_bedrooms_check;
 ALTER TABLE properties DROP CONSTRAINT IF EXISTS properties_bathrooms_check;

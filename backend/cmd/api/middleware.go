@@ -1,12 +1,16 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/codercollo/property/backend/internal/data"
+	"github.com/codercollo/property/backend/internal/validator"
 	"golang.org/x/time/rate"
 )
 
@@ -81,4 +85,117 @@ func (app *application) rateLimit(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// authenticate is middleware{AUTHORIZATION} that verifies a Bearer token and adds the user to the request context
+func (app *application) authenticate(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		//Inform caches that the response depends on the Authorization header
+		w.Header().Add("Vary", "Authorization")
+
+		//Get Authorization header (empty if missing)
+		authorizationHeader := r.Header.Get("Authorization")
+
+		//If no token, treat as anonymous and continue
+		if authorizationHeader == "" {
+			r = app.contextSetUser(r, data.AnonymousUser)
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		//Expect "Bearer <token>" format
+		headerParts := strings.Split(authorizationHeader, " ")
+		if len(headerParts) != 2 || headerParts[0] != "Bearer" {
+			app.invalidAuthenticationTokenResponse(w, r)
+			return
+		}
+
+		//Extract token string
+		token := headerParts[1]
+
+		//Validate token format
+		v := validator.New()
+		if data.ValidateTokenPlaintext(v, token); !v.Valid() {
+			app.invalidAuthenticationTokenResponse(w, r)
+			return
+		}
+
+		//Look up user for the token (auth scope)
+		user, err := app.models.Users.GetForToken(data.ScopeAuthentication, token)
+		if err != nil {
+			switch {
+			case errors.Is(err, data.ErrUserNotFound):
+				app.invalidAuthenticationTokenResponse(w, r)
+			default:
+				app.serverErrorResponse(w, r, err)
+			}
+			return
+		}
+
+		//Add user to context and continue
+		r = app.contextSetUser(r, user)
+		next.ServeHTTP(w, r)
+	})
+}
+
+// requireAuthenticatedUser used to block anonymous users
+func (app *application) requireAuthenticatedUser(next http.HandlerFunc) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		//Get user from context
+		user := app.contextGetUser(r)
+
+		//Block anonymous users
+		if user.IsAnonymous() {
+			app.authenticationRequiredResponse(w, r)
+			return
+		}
+
+		//Proceed to the next handler
+		next.ServeHTTP(w, r)
+	})
+}
+
+// requireActivatedUser allows only authenticated and activated users
+func (app *application) requireActivatedUser(next http.HandlerFunc) http.HandlerFunc {
+	//Inner handler that checks user activation before calling the nex handler
+	fn := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user := app.contextGetUser(r)
+
+		//Block inactive users
+		if !user.Activated {
+			app.inactiveAccountResponse(w, r)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+
+	//Run activation check after ensuring authentication
+	return app.requireAuthenticatedUser(fn)
+}
+
+// requirePermission ensures the user has the specified permission
+func (app *application) requirePermission(code string, next http.HandlerFunc) http.HandlerFunc {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		//Get user from context
+		user := app.contextGetUser(r)
+
+		//Fetch user's permissions
+		permissions, err := app.models.Permissions.GetAllForUser(user.ID)
+		if err != nil {
+			app.serverErrorResponse(w, r, err)
+			return
+		}
+
+		//Deny access if the user lacks the permission
+		if !permissions.Include(code) {
+			app.notPermittedResponse(w, r)
+			return
+		}
+
+		//User has permission - proceeed
+		next.ServeHTTP(w, r)
+	}
+
+	//Ensure user is activated before checking permissions
+	return app.requireActivatedUser(fn)
 }

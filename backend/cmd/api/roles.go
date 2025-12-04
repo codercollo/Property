@@ -1,0 +1,50 @@
+package main
+
+//Roles represents user roles in the system
+type Role string
+
+const (
+	RoleUser  Role = "user"
+	RoleAgent Role = "agent"
+	RoleAdmin Role = "admin"
+)
+
+//grandRolePermissions assigns permissions based on the user's role
+func (app *application) grandRolePermissions(userID int64, role Role) error {
+	var permissions []string
+
+	switch role {
+	//Regular users can only browse properties
+	case RoleUser:
+		permissions = []string{
+			"properties:read",
+		}
+	//Agents can manage their own listings
+	case RoleAgent:
+		permissions = []string{
+			"properties:read",
+			"properties:write",
+			"properties:feature",
+		}
+
+		// Admins have full control
+	case RoleAdmin:
+		permissions = []string{
+			"properties:read",
+			"properties:write",
+			"properties:delete",
+			"properties:feature",
+			"agents:manage",
+			"reviews:moderate",
+			"users:manage",
+		}
+
+	//Default to basic user permissions
+	default:
+		permissions = []string{
+			"properties:read",
+		}
+	}
+
+	return app.models.Permissions.AddForUser(userID, permissions...)
+}

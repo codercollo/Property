@@ -305,3 +305,64 @@ func (app *application) listPropertiesHandler(w http.ResponseWriter, r *http.Req
 		app.serverErrorResponse(w, r, err)
 	}
 }
+
+// featurePropertyHandler features properties, validate ID, handle errors and returns JSON
+func (app *application) featurePropertyHandler(w http.ResponseWriter, r *http.Request) {
+	//Get property ID from URL
+	id, err := app.readIDParam(r)
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	//Mark property as featured
+	err = app.models.Properties.Feature(id)
+	if err != nil {
+		switch err {
+		case data.ErrPropertyNotFound:
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	//Fetch the updated property
+	property, err := app.models.Properties.Get(id)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	app.writeJSON(w, http.StatusOK, envelope{"property": property}, nil)
+}
+
+// UnfeaturePropertyHandler unfeatures properties
+func (app *application) unfeaturePropertyHandler(w http.ResponseWriter, r *http.Request) {
+	//Get property ID from URL
+	id, err := app.readIDParam(r)
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	//Clear featured status
+	err = app.models.Properties.Unfeature(id)
+	if err != nil {
+		switch err {
+		case data.ErrPropertyNotFound:
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	property, err := app.models.Properties.Get(id)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	app.writeJSON(w, http.StatusOK, envelope{"property": property}, nil)
+}
