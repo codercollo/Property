@@ -199,3 +199,42 @@ func (app *application) requirePermission(code string, next http.HandlerFunc) ht
 	//Ensure user is activated before checking permissions
 	return app.requireActivatedUser(fn)
 }
+
+// requireAgentRole ensures the user is an agent
+func (app *application) requireAgentRole(next http.HandlerFunc) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user := app.contextGetUser(r)
+
+		if user.IsAnonymous() {
+			app.authenticationRequiredResponse(w, r)
+			return
+		}
+
+		if user.Role != "agent" {
+			app.notPermittedResponse(w, r)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+
+}
+
+// requireAgentOrAdmin  is a middleware that ensures the user is either an agent or admin
+func (app *application) requireAgentOrAdmin(next http.HandlerFunc) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user := app.contextGetUser(r)
+
+		if user.IsAnonymous() {
+			app.authenticationRequiredResponse(w, r)
+			return
+		}
+
+		if user.Role != "agent" && user.Role != "admin" {
+			app.notFoundResponse(w, r)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}

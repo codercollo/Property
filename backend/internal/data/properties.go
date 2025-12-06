@@ -28,7 +28,15 @@ type Property struct {
 	Features     []string   `json:"features,omitempty"`
 	Images       []string   `json:"images,omitempty"`
 	FeaturedAt   *time.Time `json:"featured_at,omitempty"`
+	AgentID      int64      `json:"agent_id,omitempty"`
 	Version      int32      `json:"version"`
+}
+
+// PropertyStats holds statistics about an agent's properties
+type PropertyStats struct {
+	TotalProperties    int `json:"total_properties"`
+	FeaturedProperties int `json:"featured_properties"`
+	PendingProperties  int `json:"pending_properties"`
 }
 
 // ValidateProperty checks that all fields of a Property are valid
@@ -76,8 +84,8 @@ func (p PropertyModel) Insert(property *Property) error {
 	//SQL query for inserting a new property and returning system-generated fields.
 	query := `
 		INSERT INTO properties 
-		(title, year_built, area, bedrooms, bathrooms, floor, price, location, property_type, features, images)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		(title, year_built, area, bedrooms, bathrooms, floor, price, location, property_type, features, images, agent_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		RETURNING id, created_at, version
                 `
 	//Create a context with a 3 second timeout
@@ -97,6 +105,7 @@ func (p PropertyModel) Insert(property *Property) error {
 		property.PropertyType,
 		pq.Array(property.Features),
 		pq.Array(property.Images),
+		property.AgentID,
 	}
 
 	//Execute the query and scan the returned values into the property struct
@@ -117,7 +126,7 @@ func (p PropertyModel) Get(id int64) (*Property, error) {
 	//SQL query to fetch a property by ID
 	query := `
 	SELECT id, created_at, title, year_built, area, bedrooms, bathrooms, floor, price, 
-	location, property_type, features, images, version
+	location, property_type, features, images, featured_at, agent_id, version
 	FROM properties
 	WHERE id = $1`
 
@@ -143,6 +152,8 @@ func (p PropertyModel) Get(id int64) (*Property, error) {
 		&property.PropertyType,
 		pq.Array(&property.Features),
 		pq.Array(&property.Images),
+		&property.FeaturedAt,
+		&property.AgentID,
 		&property.Version,
 	)
 
@@ -167,7 +178,7 @@ func (p PropertyModel) GetAll(title, location, propertyType string, features []s
 	// SQL query with filtering, sorting, pagination, and total count using a window function
 	query := fmt.Sprintf(`
 	SELECT count(*) OVER(), id, created_at, title, year_built, area, bedrooms, bathrooms,
-	       floor, price, location, property_type, features, images, version
+	       floor, price, location, property_type, features, images, featured_at, agent_id, version
 	FROM properties
 	WHERE (to_tsvector('simple', title) @@ plainto_tsquery('simple', $1) OR $1 = '')
 	AND (features @> $2 OR $2 = '{}')
@@ -214,6 +225,8 @@ func (p PropertyModel) GetAll(title, location, propertyType string, features []s
 			&property.PropertyType,
 			pq.Array(&property.Features),
 			pq.Array(&property.Images),
+			&property.FeaturedAt,
+			&property.AgentID,
 			&property.Version,
 		)
 		if err != nil {
@@ -250,8 +263,9 @@ SET
     property_type = $9,
     features = $10,
     images = $11,
+    agent_id = $12,
     version = version + 1
-WHERE id = $12 AND version = $13
+WHERE id = $13 AND version = $14
 RETURNING version
 `
 	//Create a context with a 3-second timeout
@@ -271,8 +285,9 @@ RETURNING version
 		property.PropertyType,
 		pq.Array(property.Features),
 		pq.Array(property.Images),
-		property.ID,      // property ID ($12)
-		property.Version, // current version for optimistic locking ($13)
+		property.AgentID,
+		property.ID,
+		property.Version,
 	}
 
 	//Execute the update and scan the new version
@@ -383,4 +398,93 @@ func (p PropertyModel) Unfeature(id int64) error {
 	}
 
 	return nil
+}
+
+// GetAllForAgent retrieves all properties belonging to a specific agent
+func (p PropertyModel) GetAllForAgent(agentID int64, filters Filters) ([]*Property, Metadata, error) {
+	query := `
+		SELECT count(*) OVER(), id, created_at, title, year_built, area, bedrooms, 
+		       bathrooms, floor, price, location, property_type, features, images, 
+		       featured_at, agent_id, version
+		FROM properties
+		WHERE agent_id = $1
+		ORDER BY id ASC
+		LIMIT $2 OFFSET $3`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	args := []interface{}{agentID, filters.limit(), filters.offset()}
+
+	rows, err := p.DB.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, Metadata{}, err
+	}
+	defer rows.Close()
+
+	properties := []*Property{}
+	totalRecords := 0
+
+	for rows.Next() {
+		var property Property
+		err := rows.Scan(
+			&totalRecords,
+			&property.ID,
+			&property.CreatedAt,
+			&property.Title,
+			&property.YearBuilt,
+			&property.Area,
+			&property.Bedrooms,
+			&property.Bathrooms,
+			&property.Floor,
+			&property.Price,
+			&property.Location,
+			&property.PropertyType,
+			pq.Array(&property.Features),
+			pq.Array(&property.Images),
+			&property.FeaturedAt,
+			&property.AgentID,
+			&property.Version,
+		)
+		if err != nil {
+			return nil, Metadata{}, err
+		}
+		properties = append(properties, &property)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, Metadata{}, err
+	}
+
+	metadata := calculateMetadata(totalRecords, filters.Page, filters.PageSize)
+
+	return properties, metadata, nil
+}
+
+// GetStatsForAgent returns property statistics for a specific agent
+func (p PropertyModel) GetStatsForAgent(agentID int64) (*PropertyStats, error) {
+	query := `
+		SELECT 
+			COUNT(*) as total,
+			COUNT(CASE WHEN featured_at IS NOT NULL THEN 1 END) as featured,
+			0 as pending
+		FROM properties
+		WHERE agent_id = $1`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	var stats PropertyStats
+
+	err := p.DB.QueryRowContext(ctx, query, agentID).Scan(
+		&stats.TotalProperties,
+		&stats.FeaturedProperties,
+		&stats.PendingProperties,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &stats, nil
 }

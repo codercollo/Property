@@ -29,6 +29,14 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodPost, "/v1/properties/:id/feature", app.requirePermission("properties:feature", app.featurePropertyHandler))
 	router.HandlerFunc(http.MethodDelete, "/v1/properties/:id/feature", app.requirePermission("properties:feature", app.unfeaturePropertyHandler))
 
+	//Register REVIEWS endpoints
+	router.HandlerFunc(http.MethodGet, "/v1/properties/:id/reviews", app.requirePermission("reviews:read", app.listReviewsForPropertyHandler))
+	router.HandlerFunc(http.MethodPost, "/v1/properties/:id/reviews", app.requirePermission("reviews:write", app.createReviewHandler))
+	router.HandlerFunc(http.MethodGet, "/v1/reviews/pending", app.requirePermission("reviews:moderate", app.listPendingReviewsHandler))
+	router.HandlerFunc(http.MethodPost, "/v1/reviews/:id/approve", app.requirePermission("reviews:moderate", app.approveReviewHandler))
+	router.HandlerFunc(http.MethodPost, "/v1/reviews/:id/reject", app.requirePermission("reviews:moderate", app.rejectReviewHandler))
+	router.HandlerFunc(http.MethodDelete, "/v1/reviews/:id", app.requireAuthenticatedUser(app.deleteReviewHandler))
+
 	//Register USER & Authentication endpoints
 	router.HandlerFunc(http.MethodPost, "/v1/users", app.registerUserHandler)
 	router.HandlerFunc(http.MethodPatch, "/v1/users/:id/role", app.requirePermission("users:manage", app.updateUserRoleHandler))

@@ -183,3 +183,15 @@ func (app *application) invalidAuthenticationTokenResponse(w http.ResponseWriter
 	app.errorResponse(w, r, http.StatusUnauthorized, message)
 
 }
+
+// isAgent chacks if a user is an agent
+func (app *application) isAgent(r *http.Request) bool {
+	user := app.contextGetUser(r)
+	return user.Role == "agent"
+}
+
+// isAdmin chack if a user is an admin
+func (app *application) isAdmin(r *http.Request) bool {
+	user := app.contextGetUser(r)
+	return user.Role == "admin"
+}

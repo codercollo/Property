@@ -10,6 +10,7 @@ var (
 	ErrPropertyNotFound = errors.New("property not found")
 	ErrEditConflict     = errors.New("edit conflict")
 	ErrUserNotFound     = errors.New("user not found")
+	ErrReviewNotFound   = errors.New("review not found")
 )
 
 // Models wraps all model types
@@ -18,6 +19,9 @@ type Models struct {
 	Users       UserModel
 	Tokens      TokenModel
 	Permissions PermissionModel
+	Reviews     ReviewModel
+	Payments    PaymentModel
+	Agents      AgentModel
 }
 
 // NewModels initializes and returns a Models struct with the given DB connection
@@ -27,5 +31,8 @@ func NewModels(db *sql.DB) Models {
 		Users:       UserModel{DB: db},
 		Tokens:      TokenModel{DB: db},
 		Permissions: PermissionModel{DB: db},
+		Reviews:     ReviewModel{DB: db},
+		Payments:    PaymentModel{DB: db},
+		Agents:      AgentModel{DB: db},
 	}
 }

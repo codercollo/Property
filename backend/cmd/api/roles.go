@@ -18,6 +18,8 @@ func (app *application) grandRolePermissions(userID int64, role Role) error {
 	case RoleUser:
 		permissions = []string{
 			"properties:read",
+			"reviews:read",
+			"reviews:write",
 		}
 	//Agents can manage their own listings
 	case RoleAgent:
@@ -25,6 +27,8 @@ func (app *application) grandRolePermissions(userID int64, role Role) error {
 			"properties:read",
 			"properties:write",
 			"properties:feature",
+			"reviews:read",
+			"reviews:write",
 		}
 
 		// Admins have full control
@@ -37,12 +41,17 @@ func (app *application) grandRolePermissions(userID int64, role Role) error {
 			"agents:manage",
 			"reviews:moderate",
 			"users:manage",
+			"reviews:read",
+			"reviews:write",
+			"reviews:moderate",
 		}
 
 	//Default to basic user permissions
 	default:
 		permissions = []string{
 			"properties:read",
+			"reviews:read",
+			"reviews:write",
 		}
 	}
 
