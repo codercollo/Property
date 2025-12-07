@@ -22,6 +22,7 @@ type Models struct {
 	Reviews     ReviewModel
 	Payments    PaymentModel
 	Agents      AgentModel
+	Admin       AdminModel // NEW: Admin model for platform-wide operations
 }
 
 // NewModels initializes and returns a Models struct with the given DB connection
@@ -34,5 +35,6 @@ func NewModels(db *sql.DB) Models {
 		Reviews:     ReviewModel{DB: db},
 		Payments:    PaymentModel{DB: db},
 		Agents:      AgentModel{DB: db},
+		Admin:       AdminModel{DB: db}, // NEW: Initialize Admin model
 	}
 }

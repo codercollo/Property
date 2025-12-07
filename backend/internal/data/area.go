@@ -1,6 +1,7 @@
 package data
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -17,6 +18,14 @@ func (a Area) MarshalJSON() ([]byte, error) {
 }
 
 func (a *Area) UnmarshalJSON(jsonValue []byte) error {
+	// Try to unmarshal as a plain number first
+	var num int32
+	if err := json.Unmarshal(jsonValue, &num); err == nil {
+		*a = Area(num)
+		return nil
+	}
+
+	// Try to unmarshal as a formatted string
 	unquoted, err := strconv.Unquote(string(jsonValue))
 	if err != nil {
 		return ErrInvalidAreaFormat

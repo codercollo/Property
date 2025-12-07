@@ -1,6 +1,7 @@
 package data
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -14,11 +15,19 @@ type Price float64
 
 // Marshal Formats the Price as a string
 func (p Price) MarshalJSON() ([]byte, error) {
-	formated := fmt.Sprintf("KSh %.2f", p)
-	return []byte(strconv.Quote(formated)), nil
+	formatted := fmt.Sprintf("KSh %.2f", p)
+	return []byte(strconv.Quote(formatted)), nil
 }
 
 func (p *Price) UnmarshalJSON(jsonValue []byte) error {
+	// Try to unmarshal as a plain number first
+	var num float64
+	if err := json.Unmarshal(jsonValue, &num); err == nil {
+		*p = Price(num)
+		return nil
+	}
+
+	// Try to unmarshal as a formatted string
 	unquoted, err := strconv.Unquote(string(jsonValue))
 	if err != nil {
 		return ErrInvalidPriceFormat

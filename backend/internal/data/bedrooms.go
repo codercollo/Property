@@ -1,6 +1,7 @@
 package data
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -17,6 +18,14 @@ func (b Bedrooms) MarshalJSON() ([]byte, error) {
 }
 
 func (b *Bedrooms) UnmarshalJSON(jsonValue []byte) error {
+	// Try to unmarshal as a plain number first
+	var num int32
+	if err := json.Unmarshal(jsonValue, &num); err == nil {
+		*b = Bedrooms(num)
+		return nil
+	}
+
+	// Try to unmarshal as a formatted string
 	unquoted, err := strconv.Unquote(string(jsonValue))
 	if err != nil {
 		return ErrInvalidBedroomsFormat

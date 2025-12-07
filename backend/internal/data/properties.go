@@ -400,16 +400,18 @@ func (p PropertyModel) Unfeature(id int64) error {
 	return nil
 }
 
+// Replace the GetAllForAgent method in your property.go model file
+
 // GetAllForAgent retrieves all properties belonging to a specific agent
 func (p PropertyModel) GetAllForAgent(agentID int64, filters Filters) ([]*Property, Metadata, error) {
-	query := `
+	query := fmt.Sprintf(`
 		SELECT count(*) OVER(), id, created_at, title, year_built, area, bedrooms, 
 		       bathrooms, floor, price, location, property_type, features, images, 
 		       featured_at, agent_id, version
 		FROM properties
 		WHERE agent_id = $1
-		ORDER BY id ASC
-		LIMIT $2 OFFSET $3`
+		ORDER BY %s %s, id ASC
+		LIMIT $2 OFFSET $3`, filters.sortColumn(), filters.sortDirection())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -487,4 +489,121 @@ func (p PropertyModel) GetStatsForAgent(agentID int64) (*PropertyStats, error) {
 	}
 
 	return &stats, nil
+}
+
+// GetAllForAdmin retrieves all properties with filtering for admin view
+func (p PropertyModel) GetAllForAdmin(status string, filters Filters) ([]*Property, Metadata, error) {
+	query := fmt.Sprintf(`
+		SELECT count(*) OVER(), id, created_at, title, year_built, area, bedrooms, 
+		       bathrooms, floor, price, location, property_type, features, images, 
+		       featured_at, agent_id, version
+		FROM properties
+		WHERE (status = $1 OR $1 = '')
+		ORDER BY %s %s, id DESC
+		LIMIT $2 OFFSET $3`, filters.sortColumn(), filters.sortDirection())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	args := []interface{}{status, filters.limit(), filters.offset()}
+
+	rows, err := p.DB.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, Metadata{}, err
+	}
+	defer rows.Close()
+
+	properties := []*Property{}
+	totalRecords := 0
+
+	for rows.Next() {
+		var property Property
+		err := rows.Scan(
+			&totalRecords,
+			&property.ID,
+			&property.CreatedAt,
+			&property.Title,
+			&property.YearBuilt,
+			&property.Area,
+			&property.Bedrooms,
+			&property.Bathrooms,
+			&property.Floor,
+			&property.Price,
+			&property.Location,
+			&property.PropertyType,
+			pq.Array(&property.Features),
+			pq.Array(&property.Images),
+			&property.FeaturedAt,
+			&property.AgentID,
+			&property.Version,
+		)
+		if err != nil {
+			return nil, Metadata{}, err
+		}
+		properties = append(properties, &property)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, Metadata{}, err
+	}
+
+	metadata := calculateMetadata(totalRecords, filters.Page, filters.PageSize)
+
+	return properties, metadata, nil
+}
+
+// ApproveProperty approves a property listing
+func (p PropertyModel) ApproveProperty(id, adminID int64) error {
+	query := `
+		UPDATE properties
+		SET status = 'approved', 
+		    moderated_by = $1, 
+		    moderated_at = NOW(),
+		    rejection_reason = NULL,
+		    version = version + 1
+		WHERE id = $2
+		RETURNING version`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	var newVersion int32
+
+	err := p.DB.QueryRowContext(ctx, query, adminID, id).Scan(&newVersion)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrPropertyNotFound
+		}
+		return err
+	}
+
+	return nil
+}
+
+// RejectProperty rejects a property listing with a reason
+func (p PropertyModel) RejectProperty(id, adminID int64, reason string) error {
+	query := `
+		UPDATE properties
+		SET status = 'rejected', 
+		    moderated_by = $1, 
+		    moderated_at = NOW(),
+		    rejection_reason = $2,
+		    version = version + 1
+		WHERE id = $3
+		RETURNING version`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	var newVersion int32
+
+	err := p.DB.QueryRowContext(ctx, query, adminID, reason, id).Scan(&newVersion)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrPropertyNotFound
+		}
+		return err
+	}
+
+	return nil
 }

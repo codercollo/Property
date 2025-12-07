@@ -11,65 +11,64 @@ import (
 )
 
 // Handles creating a new property
+// Add this to your properties.go handler file
+
 func (app *application) createPropertyHandler(w http.ResponseWriter, r *http.Request) {
-	//Expected JSON payload for creating a property
 	var input struct {
-		Title        string         `json:"title"`
-		YearBuilt    int32          `json:"year_built"`
-		Area         data.Area      `json:"area"`
-		Bedrooms     data.Bedrooms  `json:"bedrooms"`
-		Bathrooms    data.Bathrooms `json:"bathrooms"`
-		Floor        data.Floor     `json:"floor"`
-		Price        data.Price     `json:"price"`
-		Location     string         `json:"location"`
-		PropertyType string         `json:"property_type"`
-		Images       []string       `json:"images,omitempty"`
-		Features     []string       `json:"features"`
+		Title        string   `json:"title"`
+		YearBuilt    int32    `json:"year_built"`
+		Area         int32    `json:"area"`
+		Bedrooms     int32    `json:"bedrooms"`
+		Bathrooms    int32    `json:"bathrooms"`
+		Floor        int32    `json:"floor"`
+		Price        float64  `json:"price"`
+		Location     string   `json:"location"`
+		PropertyType string   `json:"property_type"`
+		Features     []string `json:"features"`
+		Images       []string `json:"images"`
+		// Note: NO agent_id field - we get it from the authenticated user
 	}
 
-	//Decode JSON body into input struct
 	err := app.readJSON(w, r, &input)
 	if err != nil {
 		app.badRequestResponse(w, r, err)
 		return
 	}
 
-	//Copy values from input to a new Property struct
+	// Get the authenticated user
+	user := app.contextGetUser(r)
+
+	// Create property with values from input and authenticated user
 	property := &data.Property{
 		Title:        input.Title,
 		YearBuilt:    input.YearBuilt,
-		Area:         input.Area,
-		Bedrooms:     input.Bedrooms,
-		Bathrooms:    input.Bathrooms,
-		Floor:        input.Floor,
-		Price:        input.Price,
+		Area:         data.Area(input.Area),
+		Bedrooms:     data.Bedrooms(input.Bedrooms),
+		Bathrooms:    data.Bathrooms(input.Bathrooms),
+		Floor:        data.Floor(input.Floor),
+		Price:        data.Price(input.Price),
 		Location:     input.Location,
 		PropertyType: input.PropertyType,
 		Features:     input.Features,
 		Images:       input.Images,
+		AgentID:      user.ID, // Set from authenticated user
 	}
 
-	//Initialize  a new Validator instance
 	v := validator.New()
-
-	//Validate properties and return errors if invalid
 	if data.ValidateProperty(v, property); !v.Valid() {
 		app.failedValidationResponse(w, r, v.Errors)
 		return
 	}
 
-	//Insert the validated property into the database and update its system fields
 	err = app.models.Properties.Insert(property)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
 
-	//Set Location header to the URL of the newly created property
 	headers := make(http.Header)
 	headers.Set("Location", fmt.Sprintf("/v1/properties/%d", property.ID))
 
-	//Send JSON response with 201 Created, property data, and Location header
 	err = app.writeJSON(w, http.StatusCreated, envelope{"property": property}, headers)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
