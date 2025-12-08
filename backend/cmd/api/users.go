@@ -64,7 +64,7 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Assign permissions based on user role
-	err = app.grandRolePermissions(user.ID, Role(input.Role))
+	err = app.grantRolePermissions(user.ID, Role(input.Role))
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
@@ -183,8 +183,8 @@ func (app *application) updateUserRoleHandler(w http.ResponseWriter, r *http.Req
 	user, err := app.models.Users.GetByID(id)
 	if err != nil {
 		switch {
-		case errors.Is(err, data.ErrEditConflict):
-			app.editConflictResponse(w, r)
+		case errors.Is(err, data.ErrUserNotFound):
+			app.notFoundResponse(w, r)
 		default:
 			app.serverErrorResponse(w, r, err)
 		}
@@ -204,7 +204,7 @@ func (app *application) updateUserRoleHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	//Remove all existing persmissions for the user
+	//Remove all existing permissions for the user
 	err = app.models.Permissions.RemoveAllForUser(user.ID)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
@@ -212,7 +212,7 @@ func (app *application) updateUserRoleHandler(w http.ResponseWriter, r *http.Req
 	}
 
 	//Grant new permissions based on the new role
-	err = app.grandRolePermissions(user.ID, Role(input.Role))
+	err = app.grantRolePermissions(user.ID, Role(input.Role))
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return

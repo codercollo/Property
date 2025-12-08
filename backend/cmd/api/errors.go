@@ -94,15 +94,3 @@ func (app *application) adminRequiredResponse(w http.ResponseWriter, r *http.Req
 	message := "you must be an administrator to access this resource"
 	app.errorResponse(w, r, http.StatusForbidden, message)
 }
-
-// agentRequiredResponse sends a 403 Forbidden when a non-agent tries to access agent resources
-// func (app *application) agentRequiredResponse(w http.ResponseWriter, r *http.Request) {
-// 	message := "you must be an agent to access this resource"
-// 	app.errorResponse(w, r, http.StatusForbidden, message)
-// }
-
-// forbiddenResponse sends a generic 403 Forbidden response
-// func (app *application) forbiddenResponse(w http.ResponseWriter, r *http.Request) {
-// 	message := "you do not have permission to access this resource"
-// 	app.errorResponse(w, r, http.StatusForbidden, message)
-// }

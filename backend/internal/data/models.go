@@ -5,12 +5,14 @@ import (
 	"errors"
 )
 
-// ErrPropertyNotFound is returned when a Property cannot be found in the database
+// Common errors used across the data package
 var (
 	ErrPropertyNotFound = errors.New("property not found")
 	ErrEditConflict     = errors.New("edit conflict")
 	ErrUserNotFound     = errors.New("user not found")
 	ErrReviewNotFound   = errors.New("review not found")
+	ErrDuplicateEmail   = errors.New("duplicate email")
+	ErrPaymentNotFound  = errors.New("payment not found")
 )
 
 // Models wraps all model types

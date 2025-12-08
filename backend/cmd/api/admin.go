@@ -244,7 +244,7 @@ func (app *application) updateUserHandler(w http.ResponseWriter, r *http.Request
 				app.serverErrorResponse(w, r, err)
 				return
 			}
-			err = app.grandRolePermissions(user.ID, Role(user.Role))
+			err = app.grantRolePermissions(user.ID, Role(user.Role))
 			if err != nil {
 				app.serverErrorResponse(w, r, err)
 				return

@@ -243,7 +243,7 @@ func (app *application) getAgentPropertyHandler(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	if property.AgentID != user.ID {
+	if !property.AgentID.Valid || property.AgentID.Int64 != user.ID {
 		app.notPermittedResponse(w, r)
 		return
 	}
@@ -385,7 +385,7 @@ func (app *application) createFeaturePaymentHandler(w http.ResponseWriter, r *ht
 		return
 	}
 
-	if property.AgentID != user.ID {
+	if !property.AgentID.Valid || property.AgentID.Int64 != user.ID {
 		app.notPermittedResponse(w, r)
 		return
 	}

@@ -11,11 +11,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// Custom errors
-var (
-	ErrDuplicateEmail = errors.New("duplicate email")
-)
-
 // AnonymousUser represents an unauthenticated user
 var AnonymousUser = &User{}
 

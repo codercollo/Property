@@ -9,8 +9,8 @@ const (
 	RoleAdmin Role = "admin"
 )
 
-//grandRolePermissions assigns permissions based on the user's role
-func (app *application) grandRolePermissions(userID int64, role Role) error {
+//grantRolePermissions assigns permissions based on the user's role
+func (app *application) grantRolePermissions(userID int64, role Role) error {
 	var permissions []string
 
 	switch role {

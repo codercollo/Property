@@ -181,17 +181,4 @@ func (app *application) invalidAuthenticationTokenResponse(w http.ResponseWriter
 	//Return standardized 401 Unauthorized error
 	message := "invalid or missing authentication token"
 	app.errorResponse(w, r, http.StatusUnauthorized, message)
-
-}
-
-// isAgent checks if a user is an agent
-func (app *application) isAgent(r *http.Request) bool {
-	user := app.contextGetUser(r)
-	return user.Role == "agent"
-}
-
-// isAdmin checks if a user is an admin
-func (app *application) isAdmin(r *http.Request) bool {
-	user := app.contextGetUser(r)
-	return user.Role == "admin"
 }

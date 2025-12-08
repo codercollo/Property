@@ -19,11 +19,12 @@ func (app *application) contextSetUser(r *http.Request, user *data.User) *http.R
 	return r.WithContext(ctx)
 }
 
-// contextGetUser retrieves the User to the request context and panics if missing
+// contextGetUser retrieves the User from the request context
+// Returns AnonymousUser if not found (should not panic)
 func (app *application) contextGetUser(r *http.Request) *data.User {
 	user, ok := r.Context().Value(userContextKey).(*data.User)
-	if !ok {
-		panic("missing user value in request context")
+	if !ok || user == nil {
+		return data.AnonymousUser
 	}
 	return user
 }

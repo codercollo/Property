@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -10,9 +11,7 @@ import (
 	"github.com/codercollo/property/backend/internal/validator"
 )
 
-// Handles creating a new property
-// Add this to your properties.go handler file
-
+// createPropertyHandler handles creating a new property
 func (app *application) createPropertyHandler(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		Title        string   `json:"title"`
@@ -51,7 +50,7 @@ func (app *application) createPropertyHandler(w http.ResponseWriter, r *http.Req
 		PropertyType: input.PropertyType,
 		Features:     input.Features,
 		Images:       input.Images,
-		AgentID:      user.ID, // Set from authenticated user
+		AgentID:      sql.NullInt64{Int64: user.ID, Valid: true},
 	}
 
 	v := validator.New()
@@ -189,6 +188,15 @@ func (app *application) updatePropertyHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	//Check version header for edit conflicts before updating
+	if r.Header.Get("X-Expected-Version") != "" {
+		expectedVersion, err := strconv.ParseInt(r.Header.Get("X-Expected-Version"), 10, 32)
+		if err != nil || property.Version != int32(expectedVersion) {
+			app.editConflictResponse(w, r)
+			return
+		}
+	}
+
 	//Save changes using Update method
 	err = app.models.Properties.Update(property)
 	if err != nil {
@@ -199,15 +207,6 @@ func (app *application) updatePropertyHandler(w http.ResponseWriter, r *http.Req
 			app.serverErrorResponse(w, r, err)
 		}
 		return
-
-	}
-
-	//Check version header for edit confliocts; return 409 if mismatched
-	if r.Header.Get("X-Expected-Version") != "" {
-		if strconv.FormatInt(int64(property.Version), 10) != r.Header.Get("X-Expected-Version") {
-			app.editConflictResponse(w, r)
-			return
-		}
 	}
 
 	//Return the updated property in the response

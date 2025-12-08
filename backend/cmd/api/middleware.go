@@ -217,45 +217,6 @@ func (app *application) requireAgentRole(next http.HandlerFunc) http.HandlerFunc
 
 		next.ServeHTTP(w, r)
 	})
-
-}
-
-// requireAdmin middleware ensures the user is an admin
-func (app *application) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		user := app.contextGetUser(r)
-
-		if user.IsAnonymous() {
-			app.authenticationRequiredResponse(w, r)
-			return
-		}
-
-		if user.Role != "admin" {
-			app.adminRequiredResponse(w, r)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
-}
-
-// requireAgentOrAdmin  is a middleware that ensures the user is either an agent or admin
-func (app *application) requireAgentOrAdmin(next http.HandlerFunc) http.HandlerFunc {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		user := app.contextGetUser(r)
-
-		if user.IsAnonymous() {
-			app.authenticationRequiredResponse(w, r)
-			return
-		}
-
-		if user.Role != "agent" && user.Role != "admin" {
-			app.notFoundResponse(w, r)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
 }
 
 // requireAdminRole ensures the user is an admin
@@ -269,6 +230,25 @@ func (app *application) requireAdminRole(next http.HandlerFunc) http.HandlerFunc
 		}
 
 		if user.Role != "admin" {
+			app.notPermittedResponse(w, r)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+// requireAgentOrAdmin ensures the user is either an agent or admin
+func (app *application) requireAgentOrAdmin(next http.HandlerFunc) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user := app.contextGetUser(r)
+
+		if user.IsAnonymous() {
+			app.authenticationRequiredResponse(w, r)
+			return
+		}
+
+		if user.Role != "agent" && user.Role != "admin" {
 			app.notPermittedResponse(w, r)
 			return
 		}

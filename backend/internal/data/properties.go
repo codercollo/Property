@@ -14,22 +14,22 @@ import (
 // Property represents a real estate listing returned in API responses
 // Fields use JSON tags with omitempty to hide zero-value data/ when fields are empty
 type Property struct {
-	ID           int64      `json:"id"`
-	CreatedAt    time.Time  `json:"-"`
-	Title        string     `json:"title,"`
-	YearBuilt    int32      `json:"year_built,omitempty"`
-	Area         Area       `json:"area,omitempty"`
-	Bedrooms     Bedrooms   `json:"bedrooms,omitempty"`
-	Bathrooms    Bathrooms  `json:"bathrooms,omitempty"`
-	Floor        Floor      `json:"floor,omitempty"`
-	Price        Price      `json:"price,omitempty"`
-	Location     string     `json:"location,"`
-	PropertyType string     `json:"property_type,"`
-	Features     []string   `json:"features,omitempty"`
-	Images       []string   `json:"images,omitempty"`
-	FeaturedAt   *time.Time `json:"featured_at,omitempty"`
-	AgentID      int64      `json:"agent_id,omitempty"`
-	Version      int32      `json:"version"`
+	ID           int64         `json:"id"`
+	CreatedAt    time.Time     `json:"-"`
+	Title        string        `json:"title,"`
+	YearBuilt    int32         `json:"year_built,omitempty"`
+	Area         Area          `json:"area,omitempty"`
+	Bedrooms     Bedrooms      `json:"bedrooms,omitempty"`
+	Bathrooms    Bathrooms     `json:"bathrooms,omitempty"`
+	Floor        Floor         `json:"floor,omitempty"`
+	Price        Price         `json:"price,omitempty"`
+	Location     string        `json:"location,"`
+	PropertyType string        `json:"property_type,"`
+	Features     []string      `json:"features,omitempty"`
+	Images       []string      `json:"images,omitempty"`
+	FeaturedAt   *time.Time    `json:"featured_at,omitempty"`
+	AgentID      sql.NullInt64 `json:"agent_id,omitempty"`
+	Version      int32         `json:"version"`
 }
 
 // PropertyStats holds statistics about an agent's properties
