@@ -8,7 +8,7 @@ import (
 
 // Defines and returns the application's route mappings
 func (app *application) routes() http.Handler {
-	//Initialize/create a new httpprouter router instance
+	//Initialize/create a new httprouter router instance
 	router := httprouter.New()
 
 	//Set custom 404 handler
@@ -23,6 +23,11 @@ func (app *application) routes() http.Handler {
 	//Register PROPERTIES endpoints
 	router.HandlerFunc(http.MethodGet, "/v1/properties", app.requirePermission("properties:read", app.listPropertiesHandler))
 	router.HandlerFunc(http.MethodPost, "/v1/properties", app.requirePermission("properties:write", app.createPropertyHandler))
+
+	// Advanced property search endpoints - Use different path structure to avoid conflicts
+	router.HandlerFunc(http.MethodGet, "/v1/property-search", app.requirePermission("properties:read", app.advancedPropertySearchHandler))
+	router.HandlerFunc(http.MethodGet, "/v1/property-filters", app.requirePermission("properties:read", app.getPropertyFiltersHandler))
+
 	router.HandlerFunc(http.MethodGet, "/v1/properties/:id", app.requirePermission("properties:read", app.showPropertyHandler))
 	router.HandlerFunc(http.MethodPatch, "/v1/properties/:id", app.requirePermission("properties:write", app.updatePropertyHandler))
 	router.HandlerFunc(http.MethodDelete, "/v1/properties/:id", app.requirePermission("properties:delete", app.deletePropertyHandler))
