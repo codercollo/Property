@@ -18,7 +18,6 @@ func (p Permissions) Include(code string) bool {
 			return true
 		}
 	}
-
 	return false
 }
 
@@ -30,11 +29,9 @@ type PermissionModel struct {
 // GetAllForUser returns all permission codes for the given user
 func (m PermissionModel) GetAllForUser(userID int64) (Permissions, error) {
 	query := `
-		SELECT permissions.code
-		FROM permissions
-		INNER JOIN users_permissions ON users_permissions.permission_id = permissions.id
-		INNER JOIN users ON users_permissions.user_id = users.id
-		WHERE users.id = $1`
+		SELECT permission
+		FROM user_permissions
+		WHERE user_id = $1`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -65,8 +62,9 @@ func (m PermissionModel) GetAllForUser(userID int64) (Permissions, error) {
 // AddForUser assigns one or more permission codes to a user
 func (m PermissionModel) AddForUser(userID int64, codes ...string) error {
 	query := `
-	INSERT INTO users_permissions
-	SELECT $1, permissions.id FROM permissions WHERE permissions.code = ANY($2)`
+		INSERT INTO user_permissions (user_id, permission)
+		SELECT $1, unnest($2::text[])
+		ON CONFLICT (user_id, permission) DO NOTHING`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -77,7 +75,7 @@ func (m PermissionModel) AddForUser(userID int64, codes ...string) error {
 
 // RemoveAllForUser removes all permissions for a given user
 func (m PermissionModel) RemoveAllForUser(userID int64) error {
-	query := `DELETE FROM users_permissions WHERE user_id = $1`
+	query := `DELETE FROM user_permissions WHERE user_id = $1`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()

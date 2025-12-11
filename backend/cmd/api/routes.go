@@ -34,6 +34,26 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodPost, "/v1/properties/:id/feature", app.requirePermission("properties:feature", app.featurePropertyHandler))
 	router.HandlerFunc(http.MethodDelete, "/v1/properties/:id/feature", app.requirePermission("properties:feature", app.unfeaturePropertyHandler))
 
+	// Register CRUD operations for property media.
+	router.HandlerFunc(http.MethodPost, "/v1/properties/:id/media", app.requirePermission("properties:write", app.uploadPropertyMediaHandler))
+	router.HandlerFunc(http.MethodGet, "/v1/properties/:id/media", app.requirePermission("properties:read", app.listPropertyMediaHandler))
+	router.HandlerFunc(http.MethodPatch, "/v1/properties/:id/media", app.requirePermission("properties:write", app.updatePropertyMediaHandler))
+	router.HandlerFunc(http.MethodDelete, "/v1/properties/:id/media", app.requirePermission("properties:write", app.deletePropertyMediaHandler))
+
+	// Create inquiry for a property (authenticated users)
+	router.HandlerFunc(http.MethodPost, "/v1/properties/:id/inquiries", app.requireAuthenticatedUser(app.createInquiryHandler))
+
+	// Agent endpoints: manage inquiries
+	router.HandlerFunc(http.MethodGet, "/v1/agents/me/inquiries", app.requireAgentRole(app.listAgentInquiriesHandler))
+	router.HandlerFunc(http.MethodGet, "/v1/agents/me/inquiries/:id", app.requireAgentRole(app.getAgentInquiryHandler))
+	router.HandlerFunc(http.MethodPatch, "/v1/agents/me/inquiries/:id", app.requireAgentRole(app.updateInquiryHandler))
+	router.HandlerFunc(http.MethodGet, "/v1/agents/me/inquiry-stats", app.requireAgentRole(app.getAgentInquiryStatsHandler))
+
+	// User endpoints: view own inquiries
+	router.HandlerFunc(http.MethodGet, "/v1/users/me/inquiries", app.requireAuthenticatedUser(app.listUserInquiriesHandler))
+	router.HandlerFunc(http.MethodGet, "/v1/users/me/inquiries/:id", app.requireAuthenticatedUser(app.getUserInquiryHandler))
+	router.HandlerFunc(http.MethodDelete, "/v1/inquiries/:id", app.requireAuthenticatedUser(app.deleteInquiryHandler))
+
 	//Register REVIEWS endpoints
 	router.HandlerFunc(http.MethodGet, "/v1/properties/:id/reviews", app.requirePermission("reviews:read", app.listReviewsForPropertyHandler))
 	router.HandlerFunc(http.MethodPost, "/v1/properties/:id/reviews", app.requirePermission("reviews:write", app.createReviewHandler))

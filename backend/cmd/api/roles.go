@@ -1,6 +1,6 @@
 package main
 
-//Roles represents user roles in the system
+// Roles represents user roles in the system
 type Role string
 
 const (
@@ -9,19 +9,19 @@ const (
 	RoleAdmin Role = "admin"
 )
 
-//grantRolePermissions assigns permissions based on the user's role
+// grantRolePermissions assigns permissions based on the user's role
 func (app *application) grantRolePermissions(userID int64, role Role) error {
 	var permissions []string
 
 	switch role {
-	//Regular users can only browse properties
 	case RoleUser:
 		permissions = []string{
 			"properties:read",
 			"reviews:read",
 			"reviews:write",
+			"inquiries:create",
+			"inquiries:read",
 		}
-	//Agents can manage their own listings
 	case RoleAgent:
 		permissions = []string{
 			"properties:read",
@@ -29,9 +29,9 @@ func (app *application) grantRolePermissions(userID int64, role Role) error {
 			"properties:feature",
 			"reviews:read",
 			"reviews:write",
+			"inquiries:create",
+			"inquiries:read",
 		}
-
-		// Admins have full control
 	case RoleAdmin:
 		permissions = []string{
 			"properties:read",
@@ -39,19 +39,20 @@ func (app *application) grantRolePermissions(userID int64, role Role) error {
 			"properties:delete",
 			"properties:feature",
 			"agents:manage",
-			"reviews:moderate",
-			"users:manage",
 			"reviews:read",
 			"reviews:write",
 			"reviews:moderate",
+			"users:manage",
+			"inquiries:create",
+			"inquiries:read",
 		}
-
-	//Default to basic user permissions
 	default:
 		permissions = []string{
 			"properties:read",
 			"reviews:read",
 			"reviews:write",
+			"inquiries:create",
+			"inquiries:read",
 		}
 	}
 
