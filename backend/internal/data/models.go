@@ -27,6 +27,7 @@ type Models struct {
 	Admin       AdminModel
 	Media       MediaModel
 	Inquiries   InquiryModel
+	Favourites  FavouriteModel
 }
 
 // NewModels initializes and returns a Models struct with the given DB connection
@@ -42,5 +43,6 @@ func NewModels(db *sql.DB) Models {
 		Admin:       AdminModel{DB: db},
 		Media:       MediaModel{DB: db},
 		Inquiries:   InquiryModel{DB: db},
+		Favourites:  FavouriteModel{DB: db},
 	}
 }

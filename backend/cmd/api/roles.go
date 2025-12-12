@@ -31,6 +31,7 @@ func (app *application) grantRolePermissions(userID int64, role Role) error {
 			"reviews:write",
 			"inquiries:create",
 			"inquiries:read",
+			"inquiries:manage",
 		}
 	case RoleAdmin:
 		permissions = []string{
@@ -44,7 +45,8 @@ func (app *application) grantRolePermissions(userID int64, role Role) error {
 			"reviews:moderate",
 			"users:manage",
 			"inquiries:create",
-			"inquiries:read",
+			"inquiries:manage",
+			"inquiries:delete",
 		}
 	default:
 		permissions = []string{
