@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/codercollo/property/backend/internal/data"
@@ -96,9 +97,9 @@ func (app *application) createScheduleHandler(w http.ResponseWriter, r *http.Req
 	app.background(func() {
 		// Here you could send an email or push notification to the agent
 		app.logger.PrintInfo("Schedule created", map[string]string{
-			"schedule_id": string(schedule.ID),
-			"property_id": string(propertyID),
-			"agent_id":    string(property.AgentID.Int64),
+			"schedule_id": strconv.FormatInt(schedule.ID, 10),
+			"property_id": strconv.FormatInt(propertyID, 10),
+			"agent_id":    strconv.FormatInt(property.AgentID.Int64, 10),
 		})
 	})
 
