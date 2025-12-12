@@ -1,6 +1,7 @@
 package main
 
 import (
+	"expvar"
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
@@ -8,66 +9,58 @@ import (
 
 // Defines and returns the application's route mappings
 func (app *application) routes() http.Handler {
-	//Initialize/create a new httprouter router instance
 	router := httprouter.New()
 
-	//Set custom 404 handler
+	// Custom 404 & 405 handlers
 	router.NotFound = http.HandlerFunc(app.notFoundResponse)
-
-	//Set acustom 405 handler
 	router.MethodNotAllowed = http.HandlerFunc(app.methodNotAllowedResponse)
 
-	//Register HEALTHCHECK endpoints
+	// =============================================================================
+	// HEALTHCHECK
+	// =============================================================================
 	router.HandlerFunc(http.MethodGet, "/v1/healthcheck", app.healthcheckHandler)
 
 	// =============================================================================
-	// PROPERTIES ENDPOINTS - List and Create only
+	// PROPERTIES ENDPOINTS
 	// =============================================================================
 	router.HandlerFunc(http.MethodGet, "/v1/properties", app.requirePermission("properties:read", app.listPropertiesHandler))
 	router.HandlerFunc(http.MethodPost, "/v1/properties", app.requirePermission("properties:write", app.createPropertyHandler))
 
-	// Advanced property search endpoints
+	// Static routes BEFORE wildcards
+	router.HandlerFunc(http.MethodGet, "/v1/popular-properties", app.listMostFavouritedPropertiesHandler)
+
+	// Advanced property search
 	router.HandlerFunc(http.MethodGet, "/v1/property-search", app.requirePermission("properties:read", app.advancedPropertySearchHandler))
 	router.HandlerFunc(http.MethodGet, "/v1/property-filters", app.requirePermission("properties:read", app.getPropertyFiltersHandler))
 
 	// =============================================================================
-	// PROPERTY OPERATIONS - Separate namespace to avoid ALL conflicts
+	// PROPERTY OPERATIONS (using /v1/property/:id to avoid conflicts)
 	// =============================================================================
-	router.HandlerFunc(http.MethodGet, "/v1/property/:id", app.requirePermission("properties:read", app.showPropertyHandler))
-	router.HandlerFunc(http.MethodPatch, "/v1/property/:id", app.requirePermission("properties:write", app.updatePropertyHandler))
-	router.HandlerFunc(http.MethodDelete, "/v1/property/:id", app.requirePermission("properties:delete", app.deletePropertyHandler))
-
-	// Popular properties - different path entirely
-	router.HandlerFunc(http.MethodGet, "/v1/popular-properties", app.listMostFavouritedPropertiesHandler)
-
-	// =============================================================================
-	// PROPERTY FEATURES
-	// =============================================================================
+	// Longer paths first
 	router.HandlerFunc(http.MethodPost, "/v1/property/:id/feature-payment", app.requireAuthenticatedUser(app.createFeaturePaymentHandler))
 	router.HandlerFunc(http.MethodPost, "/v1/property/:id/feature", app.requirePermission("properties:feature", app.featurePropertyHandler))
 	router.HandlerFunc(http.MethodDelete, "/v1/property/:id/feature", app.requirePermission("properties:feature", app.unfeaturePropertyHandler))
 
-	// =============================================================================
-	// PROPERTY MEDIA
-	// =============================================================================
+	router.HandlerFunc(http.MethodGet, "/v1/property/:id/favourite-count", app.getPropertyFavouriteCountHandler)
+
 	router.HandlerFunc(http.MethodPost, "/v1/property/:id/media", app.requirePermission("properties:write", app.uploadPropertyMediaHandler))
 	router.HandlerFunc(http.MethodGet, "/v1/property/:id/media", app.requirePermission("properties:read", app.listPropertyMediaHandler))
 	router.HandlerFunc(http.MethodPatch, "/v1/property/:id/media", app.requirePermission("properties:write", app.updatePropertyMediaHandler))
 	router.HandlerFunc(http.MethodDelete, "/v1/property/:id/media", app.requirePermission("properties:write", app.deletePropertyMediaHandler))
 
-	// =============================================================================
-	// PROPERTY INQUIRIES
-	// =============================================================================
 	router.HandlerFunc(http.MethodPost, "/v1/property/:id/inquiries", app.requireAuthenticatedUser(app.createInquiryHandler))
+	router.HandlerFunc(http.MethodPost, "/v1/property/:id/schedule", app.requireAuthenticatedUser(app.createScheduleHandler))
 
-	// =============================================================================
-	// PROPERTY REVIEWS
-	// =============================================================================
 	router.HandlerFunc(http.MethodGet, "/v1/property/:id/reviews", app.requirePermission("reviews:read", app.listReviewsForPropertyHandler))
 	router.HandlerFunc(http.MethodPost, "/v1/property/:id/reviews", app.requirePermission("reviews:write", app.createReviewHandler))
 
+	// Base property routes (AFTER all sub-routes)
+	router.HandlerFunc(http.MethodGet, "/v1/property/:id", app.requirePermission("properties:read", app.showPropertyHandler))
+	router.HandlerFunc(http.MethodPatch, "/v1/property/:id", app.requirePermission("properties:write", app.updatePropertyHandler))
+	router.HandlerFunc(http.MethodDelete, "/v1/property/:id", app.requirePermission("properties:delete", app.deletePropertyHandler))
+
 	// =============================================================================
-	// REVIEW MANAGEMENT
+	// REVIEWS
 	// =============================================================================
 	router.HandlerFunc(http.MethodGet, "/v1/reviews/pending", app.requirePermission("reviews:moderate", app.listPendingReviewsHandler))
 	router.HandlerFunc(http.MethodPost, "/v1/reviews/approve/:id", app.requirePermission("reviews:moderate", app.approveReviewHandler))
@@ -75,108 +68,102 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodDelete, "/v1/reviews/delete/:id", app.requireAuthenticatedUser(app.deleteReviewHandler))
 
 	// =============================================================================
-	// FAVOURITES
+	// USER ROUTES
 	// =============================================================================
-	router.HandlerFunc(http.MethodGet, "/v1/property/:id/favourite-count", app.getPropertyFavouriteCountHandler)
-
-	// =============================================================================
-	// USER FAVOURITES / SAVED PROPERTIES
-	// =============================================================================
+	// User favourites - static routes first
 	router.HandlerFunc(http.MethodGet, "/v1/users/me/favourites/stats", app.requireAuthenticatedUser(app.getUserFavouriteStatsHandler))
 	router.HandlerFunc(http.MethodGet, "/v1/users/me/favourites", app.requireAuthenticatedUser(app.listUserFavouritesHandler))
 	router.HandlerFunc(http.MethodGet, "/v1/users/me/favourite/:id/status", app.requireAuthenticatedUser(app.checkFavouriteStatusHandler))
 	router.HandlerFunc(http.MethodPost, "/v1/users/me/favourite/:id", app.requireAuthenticatedUser(app.addFavouriteHandler))
 	router.HandlerFunc(http.MethodDelete, "/v1/users/me/favourite/:id", app.requireAuthenticatedUser(app.removeFavouriteHandler))
 
-	// =============================================================================
-	// INQUIRIES MANAGEMENT
-	// =============================================================================
-	// Agent endpoints
-	router.HandlerFunc(http.MethodGet, "/v1/agents/me/inquiry-stats", app.requireAgentRole(app.getAgentInquiryStatsHandler))
-	router.HandlerFunc(http.MethodGet, "/v1/agents/me/inquiries", app.requireAgentRole(app.listAgentInquiriesHandler))
-	router.HandlerFunc(http.MethodGet, "/v1/agents/me/inquiries/:id", app.requireAgentRole(app.getAgentInquiryHandler))
-	router.HandlerFunc(http.MethodPatch, "/v1/agents/me/inquiries/:id", app.requireAgentRole(app.updateInquiryHandler))
+	// User schedules (viewings and schedules are the same thing)
+	router.HandlerFunc(http.MethodGet, "/v1/users/me/schedules", app.requireAuthenticatedUser(app.listUserSchedulesHandler))
+	router.HandlerFunc(http.MethodGet, "/v1/users/me/schedules/:id", app.requireAuthenticatedUser(app.getUserScheduleHandler))
+	router.HandlerFunc(http.MethodDelete, "/v1/users/me/schedules/:id", app.requireAuthenticatedUser(app.cancelUserScheduleHandler))
 
-	// User endpoints
+	// User inquiries
 	router.HandlerFunc(http.MethodGet, "/v1/users/me/inquiries", app.requireAuthenticatedUser(app.listUserInquiriesHandler))
 	router.HandlerFunc(http.MethodGet, "/v1/users/me/inquiries/:id", app.requireAuthenticatedUser(app.getUserInquiryHandler))
 	router.HandlerFunc(http.MethodDelete, "/v1/inquiries/:id", app.requireAuthenticatedUser(app.deleteInquiryHandler))
 
-	// =============================================================================
-	// USER & AUTHENTICATION
-	// =============================================================================
+	// User authentication & registration
 	router.HandlerFunc(http.MethodPost, "/v1/users", app.registerUserHandler)
 	router.HandlerFunc(http.MethodPut, "/v1/users/activated", app.activateUserHandler)
-	router.HandlerFunc(http.MethodPatch, "/v1/users/:id/role", app.requirePermission("users:manage", app.updateUserRoleHandler))
 	router.HandlerFunc(http.MethodPost, "/v1/tokens/authentication", app.createAuthenticationTokenHandler)
 
+	// Admin user management
+	router.HandlerFunc(http.MethodPatch, "/v1/users/:id/role", app.requirePermission("users:manage", app.updateUserRoleHandler))
+
 	// =============================================================================
-	// AGENT ACCOUNT MANAGEMENT
+	// AGENT ROUTES
 	// =============================================================================
+	// Agent inquiries - static routes first
+	router.HandlerFunc(http.MethodGet, "/v1/agents/me/inquiry-stats", app.requireAuthenticatedUser(app.getAgentInquiryStatsHandler))
+	router.HandlerFunc(http.MethodGet, "/v1/agents/me/inquiries", app.requireAuthenticatedUser(app.listAgentInquiriesHandler))
+	router.HandlerFunc(http.MethodGet, "/v1/agents/me/inquiries/:id", app.requireAuthenticatedUser(app.getAgentInquiryHandler))
+	router.HandlerFunc(http.MethodPatch, "/v1/agents/me/inquiries/:id", app.requireAuthenticatedUser(app.updateInquiryHandler))
+
+	// Agent schedules - static routes first (FIXED: changed from requireAgentRole to requireAuthenticatedUser)
+	router.HandlerFunc(http.MethodGet, "/v1/agents/me/schedule-stats", app.requireAuthenticatedUser(app.getAgentScheduleStatsHandler))
+	router.HandlerFunc(http.MethodGet, "/v1/agents/me/schedules", app.requireAuthenticatedUser(app.listAgentSchedulesHandler))
+	router.HandlerFunc(http.MethodGet, "/v1/agents/me/schedules/:id", app.requireAuthenticatedUser(app.getAgentScheduleHandler))
+	router.HandlerFunc(http.MethodPatch, "/v1/agents/me/schedules/:id", app.requireAuthenticatedUser(app.updateAgentScheduleStatusHandler))
+
+	// Agent profile
 	router.HandlerFunc(http.MethodGet, "/v1/agents/me", app.requireAuthenticatedUser(app.getAgentProfileHandler))
 	router.HandlerFunc(http.MethodPatch, "/v1/agents/me", app.requireAuthenticatedUser(app.updateAgentProfileHandler))
 	router.HandlerFunc(http.MethodDelete, "/v1/agents/me", app.requireAuthenticatedUser(app.deleteAgentAccountHandler))
 	router.HandlerFunc(http.MethodPatch, "/v1/agents/me/password", app.requireAuthenticatedUser(app.changeAgentPasswordHandler))
 
-	// =============================================================================
-	// AGENT PROPERTY MANAGEMENT
-	// =============================================================================
+	// Agent properties - static routes first
 	router.HandlerFunc(http.MethodGet, "/v1/agents/me/property-stats", app.requireAuthenticatedUser(app.getAgentPropertyStatsHandler))
 	router.HandlerFunc(http.MethodGet, "/v1/agents/me/properties", app.requireAuthenticatedUser(app.listAgentPropertiesHandler))
 	router.HandlerFunc(http.MethodGet, "/v1/agents/me/properties/:id", app.requireAuthenticatedUser(app.getAgentPropertyHandler))
 
-	// =============================================================================
-	// AGENT REVIEW MANAGEMENT
-	// =============================================================================
+	// Agent reviews - static routes first
 	router.HandlerFunc(http.MethodGet, "/v1/agents/me/reviews/pending", app.requireAuthenticatedUser(app.listAgentPendingReviewsHandler))
 	router.HandlerFunc(http.MethodGet, "/v1/agents/me/reviews", app.requireAuthenticatedUser(app.listAgentReviewsHandler))
 
-	// =============================================================================
-	// AGENT PAYMENTS & FEATURED LISTINGS
-	// =============================================================================
+	// Agent payments
 	router.HandlerFunc(http.MethodGet, "/v1/agents/me/payments", app.requireAuthenticatedUser(app.listPaymentHistoryHandler))
 	router.HandlerFunc(http.MethodGet, "/v1/agents/me/payments/:id", app.requireAuthenticatedUser(app.getPaymentStatusHandler))
 
-	// =============================================================================
-	// AGENT DASHBOARD
-	// =============================================================================
+	// Agent dashboard
 	router.HandlerFunc(http.MethodGet, "/v1/agents/me/stats", app.requireAuthenticatedUser(app.getAgentDashboardStatsHandler))
 
 	// =============================================================================
-	// ADMIN SELF-MANAGEMENT
+	// ADMIN ROUTES
 	// =============================================================================
+	// Admin profile
 	router.HandlerFunc(http.MethodGet, "/v1/admin/me", app.requireAdminRole(app.getAdminProfileHandler))
 	router.HandlerFunc(http.MethodPatch, "/v1/admin/me", app.requireAdminRole(app.updateAdminProfileHandler))
 	router.HandlerFunc(http.MethodPatch, "/v1/admin/me/password", app.requireAdminRole(app.changeAdminPasswordHandler))
 
-	// =============================================================================
-	// ADMIN USER MANAGEMENT
-	// =============================================================================
+	// Admin user management
 	router.HandlerFunc(http.MethodGet, "/v1/admin/users", app.requireAdminRole(app.listAllUsersHandler))
 	router.HandlerFunc(http.MethodGet, "/v1/admin/users/:id", app.requireAdminRole(app.viewUserHandler))
 	router.HandlerFunc(http.MethodPatch, "/v1/admin/users/:id", app.requireAdminRole(app.updateUserHandler))
 	router.HandlerFunc(http.MethodDelete, "/v1/admin/users/:id", app.requireAdminRole(app.deleteUserHandler))
 
-	// =============================================================================
-	// ADMIN AGENT MANAGEMENT
-	// =============================================================================
+	// Admin agent management
 	router.HandlerFunc(http.MethodGet, "/v1/admin/agents", app.requireAdminRole(app.listAllAgentsHandler))
 	router.HandlerFunc(http.MethodPost, "/v1/admin/agents/:id/verify", app.requireAdminRole(app.approveAgentVerificationHandler))
 	router.HandlerFunc(http.MethodPost, "/v1/admin/agents/:id/suspend", app.requireAdminRole(app.suspendAgentHandler))
 	router.HandlerFunc(http.MethodPost, "/v1/admin/agents/:id/activate", app.requireAdminRole(app.activateAgentHandler))
 
-	// =============================================================================
-	// ADMIN PROPERTY MANAGEMENT
-	// =============================================================================
+	// Admin property management
 	router.HandlerFunc(http.MethodGet, "/v1/admin/properties", app.requireAdminRole(app.listAllPropertiesHandler))
 	router.HandlerFunc(http.MethodDelete, "/v1/admin/properties/:id", app.requireAdminRole(app.adminDeletePropertyHandler))
 
-	// =============================================================================
-	// ADMIN PLATFORM STATISTICS
-	// =============================================================================
+	// Admin statistics - longer path first
 	router.HandlerFunc(http.MethodGet, "/v1/admin/stats/growth", app.requireAdminRole(app.getGrowthMetricsHandler))
 	router.HandlerFunc(http.MethodGet, "/v1/admin/stats", app.requireAdminRole(app.getPlatformStatsHandler))
 
-	//Return configured router with middleware
+	// =============================================================================
+	// DEBUG/METRICS
+	// =============================================================================
+	router.Handler(http.MethodGet, "/debug/vars", expvar.Handler())
+
 	return app.recoverPanic(app.enableCORS(app.rateLimit(app.authenticate(router))))
 }
