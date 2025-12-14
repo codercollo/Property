@@ -231,3 +231,81 @@ func (app *application) updateUserRoleHandler(w http.ResponseWriter, r *http.Req
 		app.serverErrorResponse(w, r, err)
 	}
 }
+
+// Verifies a password reset token and updates the user's password.
+func (app *application) updateUserPasswordHandler(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	// Parse request input
+	var input struct {
+		Password       string `json:"password"`
+		TokenPlaintext string `json:"token"`
+	}
+
+	if err := app.readJSON(w, r, &input); err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	// Validate input
+	v := validator.New()
+	data.ValidatePasswordPlaintext(v, input.Password)
+	data.ValidateTokenPlaintext(v, input.TokenPlaintext)
+
+	if !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	// Retrieve user by password reset token
+	user, err := app.models.Users.GetForToken(
+		data.ScopePasswordReset,
+		input.TokenPlaintext,
+	)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrUserNotFound):
+			v.AddError("token", "invalid or expired password reset token")
+			app.failedValidationResponse(w, r, v.Errors)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	// Set new password
+	if err := user.Password.Set(input.Password); err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	// Persist user update
+	if err := app.models.Users.Update(user); err != nil {
+		switch {
+		case errors.Is(err, data.ErrEditConflict):
+			app.editConflictResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	// Revoke existing password reset tokens
+	if err := app.models.Tokens.DeleteAllForUser(
+		data.ScopePasswordReset,
+		user.ID,
+	); err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	// Respond with confirmation
+	env := envelope{
+		"message": "your password was successfully reset",
+	}
+
+	if err := app.writeJSON(w, http.StatusOK, env, nil); err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}

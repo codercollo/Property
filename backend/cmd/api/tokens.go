@@ -65,3 +65,79 @@ func (app *application) createAuthenticationTokenHandler(w http.ResponseWriter, 
 		app.serverErrorResponse(w, r, err)
 	}
 }
+
+// Handles password reset token creation and email delivery.
+func (app *application) createPasswordResetTokenHandler(w http.ResponseWriter, r *http.Request) {
+	// Parse request input
+	var input struct {
+		Email string `json:"email"`
+	}
+
+	if err := app.readJSON(w, r, &input); err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	// Validate email address
+	v := validator.New()
+
+	if data.ValidateEmail(v, input.Email); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	// Retrieve user by email
+	user, err := app.models.Users.GetByEmail(input.Email)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrUserNotFound):
+			v.AddError("email", "no matching email address found")
+			app.failedValidationResponse(w, r, v.Errors)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	// Check user activation status
+	if !user.Activated {
+		v.AddError("email", "user account must be activated")
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	// Generate password reset token
+	token, err := app.models.Tokens.New(
+		user.ID,
+		45*time.Minute,
+		data.ScopePasswordReset,
+	)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	// Send password reset email asynchronously
+	app.background(func() {
+		data := map[string]interface{}{
+			"passwordResetToken": token.Plaintext,
+		}
+
+		if err := app.mailer.Send(
+			user.Email,
+			"token_password_reset.tmpl",
+			data,
+		); err != nil {
+			app.logger.PrintError(err, nil)
+		}
+	})
+
+	// Respond with acceptance message
+	env := envelope{
+		"message": "an email will be sent to you containing password reset instructions",
+	}
+
+	if err := app.writeJSON(w, http.StatusAccepted, env, nil); err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}

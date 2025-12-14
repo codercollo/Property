@@ -15,6 +15,7 @@ import (
 const (
 	ScopeActivation     = "activation"
 	ScopeAuthentication = "authentication"
+	ScopePasswordReset  = "password-reset"
 )
 
 // Token holds the plaintext token, its hash, user ID, expiry, and scope
