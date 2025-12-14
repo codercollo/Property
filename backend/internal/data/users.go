@@ -286,3 +286,39 @@ WHERE tokens.hash = $1
 func (u *User) IsAnonymous() bool {
 	return u == AnonymousUser
 }
+
+// Get retrieves a user by ID from the database
+func (m UserModel) Get(id int64) (*User, error) {
+	query := `
+SELECT id, created_at, name, email, password_hash, activated, role, version
+FROM users
+WHERE id = $1`
+
+	var user User
+
+	// Create a 3-second timeout context
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	// Execute query and scan into user struct
+	err := m.DB.QueryRowContext(ctx, query, id).Scan(
+		&user.ID,
+		&user.CreatedAt,
+		&user.Name,
+		&user.Email,
+		&user.Password.hash,
+		&user.Activated,
+		&user.Role,
+		&user.Version,
+	)
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrUserNotFound
+		default:
+			return nil, err
+		}
+	}
+
+	return &user, nil
+}

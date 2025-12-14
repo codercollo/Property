@@ -3,25 +3,29 @@ package main
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/codercollo/property/backend/internal/data"
 	"github.com/codercollo/property/backend/internal/validator"
+	"github.com/pascaldekloe/jwt"
 )
 
 // createAuthenticationTokenHandler handles {LOGIN HANDLER} user login and issues an authentication token
+// Handles user authentication and returns a JWT token.
 func (app *application) createAuthenticationTokenHandler(w http.ResponseWriter, r *http.Request) {
-	//Parse email and password from request body
+	// Parse request input
 	var input struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
+
 	if err := app.readJSON(w, r, &input); err != nil {
 		app.badRequestResponse(w, r, err)
 		return
 	}
 
-	//Validate email and password format
+	// Validate input
 	v := validator.New()
 	data.ValidateEmail(v, input.Email)
 	data.ValidatePasswordPlaintext(v, input.Password)
@@ -30,7 +34,7 @@ func (app *application) createAuthenticationTokenHandler(w http.ResponseWriter, 
 		return
 	}
 
-	//Lookup user by email
+	// Retrieve user
 	user, err := app.models.Users.GetByEmail(input.Email)
 	if err != nil {
 		switch {
@@ -42,7 +46,7 @@ func (app *application) createAuthenticationTokenHandler(w http.ResponseWriter, 
 		return
 	}
 
-	//Verify password
+	// Check password
 	match, err := user.Password.Matches(input.Password)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
@@ -53,15 +57,30 @@ func (app *application) createAuthenticationTokenHandler(w http.ResponseWriter, 
 		return
 	}
 
-	//Generate new authentication token (24hrs expiry)
-	token, err := app.models.Tokens.New(user.ID, 24*time.Hour, data.ScopeAuthentication)
+	// Create JWT claims
+	var claims jwt.Claims
+	claims.Subject = strconv.FormatInt(user.ID, 10)
+	claims.Issued = jwt.NewNumericTime(time.Now())
+	claims.NotBefore = jwt.NewNumericTime(time.Now())
+	claims.Expires = jwt.NewNumericTime(time.Now().Add(24 * time.Hour))
+	claims.Issuer = "propertyown.api"
+	claims.Audiences = []string{"propertyown.api"}
+
+	// Sign JWT
+	jwtBytes, err := claims.HMACSign(jwt.HS256, []byte(app.config.jwt.secret))
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
 
-	//Return token in JSON  with 201 Created
-	if err := app.writeJSON(w, http.StatusCreated, envelope{"authentication_token": token}, nil); err != nil {
+	// Return token in response
+	err = app.writeJSON(
+		w,
+		http.StatusCreated,
+		envelope{"authentication_token": string(jwtBytes)},
+		nil,
+	)
+	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}
 }

@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/codercollo/property/backend/internal/data"
-	"github.com/codercollo/property/backend/internal/validator"
 	"github.com/felixge/httpsnoop"
+	"github.com/pascaldekloe/jwt"
 	"github.com/tomasen/realip"
 	"golang.org/x/time/rate"
 )
@@ -84,41 +84,52 @@ func (app *application) rateLimit(next http.Handler) http.Handler {
 	})
 }
 
-// authenticate is middleware{AUTHORIZATION} that verifies a Bearer token and adds the user to the request context
+// / Middleware to authenticate requests using a JWT token.
 func (app *application) authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		//Inform caches that the response depends on the Authorization header
+		// Set Vary header for caching proxies
 		w.Header().Add("Vary", "Authorization")
 
-		//Get Authorization header (empty if missing)
+		// Get Authorization header
 		authorizationHeader := r.Header.Get("Authorization")
-
-		//If no token, treat as anonymous and continue
 		if authorizationHeader == "" {
 			r = app.contextSetUser(r, data.AnonymousUser)
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		//Expect "Bearer <token>" format
+		// Parse and validate Bearer token format
 		headerParts := strings.Split(authorizationHeader, " ")
 		if len(headerParts) != 2 || headerParts[0] != "Bearer" {
 			app.invalidAuthenticationTokenResponse(w, r)
 			return
 		}
-
-		//Extract token string
 		token := headerParts[1]
 
-		//Validate token format
-		v := validator.New()
-		if data.ValidateTokenPlaintext(v, token); !v.Valid() {
+		// Verify JWT signature and extract claims
+		claims, err := jwt.HMACCheck([]byte(token), []byte(app.config.jwt.secret))
+		if err != nil {
 			app.invalidAuthenticationTokenResponse(w, r)
 			return
 		}
 
-		//Look up user for the token (auth scope)
-		user, err := app.models.Users.GetForToken(data.ScopeAuthentication, token)
+		// Validate token timing and metadata
+		if !claims.Valid(time.Now()) ||
+			claims.Issuer != "propertyown.api" ||
+			!claims.AcceptAudience("propertyown.api") {
+			app.invalidAuthenticationTokenResponse(w, r)
+			return
+		}
+
+		// Extract user ID from claims
+		userID, err := strconv.ParseInt(claims.Subject, 10, 64)
+		if err != nil {
+			app.serverErrorResponse(w, r, err)
+			return
+		}
+
+		// Lookup user record
+		user, err := app.models.Users.Get(userID)
 		if err != nil {
 			switch {
 			case errors.Is(err, data.ErrUserNotFound):
@@ -129,7 +140,7 @@ func (app *application) authenticate(next http.Handler) http.Handler {
 			return
 		}
 
-		//Add user to context and continue
+		// Add user to request context and continue
 		r = app.contextSetUser(r, user)
 		next.ServeHTTP(w, r)
 	})
