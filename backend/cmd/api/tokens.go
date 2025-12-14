@@ -141,3 +141,74 @@ func (app *application) createPasswordResetTokenHandler(w http.ResponseWriter, r
 		app.serverErrorResponse(w, r, err)
 	}
 }
+
+// Handles creation of an account activation token and emails it to the user.
+func (app *application) createActivationTokenHandler(w http.ResponseWriter, r *http.Request) {
+	// Parse request input
+	var input struct {
+		Email string `json:"email"`
+	}
+
+	if err := app.readJSON(w, r, &input); err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	// Validate email address
+	v := validator.New()
+	if data.ValidateEmail(v, input.Email); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	// Retrieve user by email
+	user, err := app.models.Users.GetByEmail(input.Email)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrUserNotFound):
+			v.AddError("email", "no matching email address found")
+			app.failedValidationResponse(w, r, v.Errors)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	// Ensure the user is not already activated
+	if user.Activated {
+		v.AddError("email", "user has already been activated")
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	// Generate a new activation token
+	token, err := app.models.Tokens.New(
+		user.ID,
+		3*24*time.Hour,
+		data.ScopeActivation,
+	)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	// Send activation email asynchronously
+	app.background(func() {
+		data := map[string]interface{}{
+			"activationToken": token.Plaintext,
+		}
+
+		if err := app.mailer.Send(user.Email, "token_activation.tmpl", data); err != nil {
+			app.logger.PrintError(err, nil)
+		}
+	})
+
+	// Respond with confirmation message
+	env := envelope{
+		"message": "an email will be sent to you containing activation instructions",
+	}
+
+	if err := app.writeJSON(w, http.StatusAccepted, env, nil); err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
