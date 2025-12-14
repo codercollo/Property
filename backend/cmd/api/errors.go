@@ -90,7 +90,7 @@ func (app *application) notPermittedResponse(w http.ResponseWriter, r *http.Requ
 }
 
 // adminRequiredResponse sends a 403 Forbidden when a non-admin tries to access admin resources
-func (app *application) adminRequiredResponse(w http.ResponseWriter, r *http.Request) {
-	message := "you must be an administrator to access this resource"
-	app.errorResponse(w, r, http.StatusForbidden, message)
-}
+// func (app *application) adminRequiredResponse(w http.ResponseWriter, r *http.Request) {
+// 	message := "you must be an administrator to access this resource"
+// 	app.errorResponse(w, r, http.StatusForbidden, message)
+// }

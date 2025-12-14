@@ -209,23 +209,23 @@ func (app *application) requirePermission(code string, next http.HandlerFunc) ht
 }
 
 // requireAgentRole ensures the user is an agent
-func (app *application) requireAgentRole(next http.HandlerFunc) http.HandlerFunc {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		user := app.contextGetUser(r)
+// func (app *application) requireAgentRole(next http.HandlerFunc) http.HandlerFunc {
+// 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// 		user := app.contextGetUser(r)
 
-		if user.IsAnonymous() {
-			app.authenticationRequiredResponse(w, r)
-			return
-		}
+// 		if user.IsAnonymous() {
+// 			app.authenticationRequiredResponse(w, r)
+// 			return
+// 		}
 
-		if user.Role != "agent" {
-			app.notPermittedResponse(w, r)
-			return
-		}
+// 		if user.Role != "agent" {
+// 			app.notPermittedResponse(w, r)
+// 			return
+// 		}
 
-		next.ServeHTTP(w, r)
-	})
-}
+// 		next.ServeHTTP(w, r)
+// 	})
+// }
 
 // requireAdminRole ensures the user is an admin
 func (app *application) requireAdminRole(next http.HandlerFunc) http.HandlerFunc {
@@ -247,51 +247,51 @@ func (app *application) requireAdminRole(next http.HandlerFunc) http.HandlerFunc
 }
 
 // requireAgentOrAdmin ensures the user is either an agent or admin
-func (app *application) requireAgentOrAdmin(next http.HandlerFunc) http.HandlerFunc {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		user := app.contextGetUser(r)
+// func (app *application) requireAgentOrAdmin(next http.HandlerFunc) http.HandlerFunc {
+// 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// 		user := app.contextGetUser(r)
 
-		if user.IsAnonymous() {
-			app.authenticationRequiredResponse(w, r)
-			return
-		}
+// 		if user.IsAnonymous() {
+// 			app.authenticationRequiredResponse(w, r)
+// 			return
+// 		}
 
-		if user.Role != "agent" && user.Role != "admin" {
-			app.notPermittedResponse(w, r)
-			return
-		}
+// 		if user.Role != "agent" && user.Role != "admin" {
+// 			app.notPermittedResponse(w, r)
+// 			return
+// 		}
 
-		next.ServeHTTP(w, r)
-	})
-}
+// 		next.ServeHTTP(w, r)
+// 	})
+// }
 
 // requireAdminOrSelf allows admins or the user themselves to access
-func (app *application) requireAdminOrSelf(next http.HandlerFunc) http.HandlerFunc {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		user := app.contextGetUser(r)
+// func (app *application) requireAdminOrSelf(next http.HandlerFunc) http.HandlerFunc {
+// 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// 		user := app.contextGetUser(r)
 
-		if user.IsAnonymous() {
-			app.authenticationRequiredResponse(w, r)
-			return
-		}
+// 		if user.IsAnonymous() {
+// 			app.authenticationRequiredResponse(w, r)
+// 			return
+// 		}
 
-		// Extract user ID from URL if present
-		id, err := app.readIDParam(r)
-		if err == nil {
-			// If user is admin or accessing their own resource
-			if user.Role == "admin" || user.ID == id {
-				next.ServeHTTP(w, r)
-				return
-			}
-		} else if user.Role == "admin" {
-			// Admin can access even without specific ID
-			next.ServeHTTP(w, r)
-			return
-		}
+// 		// Extract user ID from URL if present
+// 		id, err := app.readIDParam(r)
+// 		if err == nil {
+// 			// If user is admin or accessing their own resource
+// 			if user.Role == "admin" || user.ID == id {
+// 				next.ServeHTTP(w, r)
+// 				return
+// 			}
+// 		} else if user.Role == "admin" {
+// 			// Admin can access even without specific ID
+// 			next.ServeHTTP(w, r)
+// 			return
+// 		}
 
-		app.notPermittedResponse(w, r)
-	})
-}
+// 		app.notPermittedResponse(w, r)
+// 	})
+// }
 
 // Middleware to handle CORS
 func (app *application) enableCORS(next http.Handler) http.Handler {
