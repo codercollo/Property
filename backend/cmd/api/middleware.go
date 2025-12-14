@@ -2,15 +2,18 @@ package main
 
 import (
 	"errors"
+	"expvar"
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/codercollo/property/backend/internal/data"
 	"github.com/codercollo/property/backend/internal/validator"
+	"github.com/felixge/httpsnoop"
 	"golang.org/x/time/rate"
 )
 
@@ -308,5 +311,33 @@ func (app *application) enableCORS(next http.Handler) http.Handler {
 		}
 
 		next.ServeHTTP(w, r)
+	})
+}
+
+// Metrics middleware collects request count, response count, status codes, and processing time.
+func (app *application) metrics(next http.Handler) http.Handler {
+	// Global metrics counters
+	totalRequestsReceived := expvar.NewInt("total_requests_received")
+	totalResponsesSent := expvar.NewInt("total_responses_sent")
+	totalProcessingTimeMicroseconds := expvar.NewInt("total_processing_time_μs")
+
+	// Response status code metrics
+	totalResponsesSentByStatus := expvar.NewMap("total_responses_sent_by_status")
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Track incoming request
+		totalRequestsReceived.Add(1)
+
+		// Capture request metrics while executing the next handler
+		metrics := httpsnoop.CaptureMetrics(next, w, r)
+
+		// Track response count
+		totalResponsesSent.Add(1)
+
+		// Track cumulative request processing time
+		totalProcessingTimeMicroseconds.Add(metrics.Duration.Microseconds())
+
+		// Track response status codes
+		totalResponsesSentByStatus.Add(strconv.Itoa(metrics.Code), 1)
 	})
 }
