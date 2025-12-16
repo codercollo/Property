@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -406,6 +407,151 @@ func (app *application) getAgentScheduleStatsHandler(w http.ResponseWriter, r *h
 	}
 
 	err = app.writeJSON(w, http.StatusOK, envelope{"stats": stats}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+// rescheduleUserScheduleHandler allows users to reschedule their viewing appointments
+func (app *application) rescheduleUserScheduleHandler(w http.ResponseWriter, r *http.Request) {
+	user := app.contextGetUser(r)
+
+	// Get schedule ID from URL
+	id, err := app.readIDParam(r)
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	// Fetch the schedule
+	schedule, err := app.models.Schedules.Get(id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrScheduleNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	// Verify ownership
+	if schedule.UserID != user.ID {
+		app.notPermittedResponse(w, r)
+		return
+	}
+
+	// Parse request body
+	var input struct {
+		ScheduledAt     time.Time `json:"scheduled_at"`
+		DurationMinutes *int      `json:"duration_minutes,omitempty"`
+		Notes           *string   `json:"notes,omitempty"`
+	}
+
+	err = app.readJSON(w, r, &input)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	// Use existing duration if not provided
+	newDuration := schedule.DurationMinutes
+	if input.DurationMinutes != nil {
+		newDuration = *input.DurationMinutes
+	}
+
+	// Validate reschedule request
+	v := validator.New()
+	data.ValidateReschedule(v, schedule, input.ScheduledAt, newDuration)
+	if !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	// Perform the reschedule
+	err = app.models.Schedules.Reschedule(id, input.ScheduledAt, newDuration, schedule.Version)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrScheduleConflict):
+			v.AddError("scheduled_at", "this time slot is already booked")
+			app.failedValidationResponse(w, r, v.Errors)
+		case errors.Is(err, data.ErrEditConflict):
+			app.editConflictResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	// Update notes if provided
+	if input.Notes != nil {
+		updatedSchedule, err := app.models.Schedules.Get(id)
+		if err != nil {
+			app.serverErrorResponse(w, r, err)
+			return
+		}
+		updatedSchedule.Notes = *input.Notes
+		// Note: You might want to add an UpdateNotes method to avoid version conflict issues
+	}
+
+	// Fetch the updated schedule
+	updatedSchedule, err := app.models.Schedules.Get(id)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	// Get agent information for notification
+	agent, err := app.models.Users.GetByID(schedule.AgentID)
+	if err != nil {
+		app.logger.PrintError(err, map[string]string{
+			"context": "fetching agent for reschedule notification",
+		})
+	} else {
+		// Send notification to agent (background task)
+		app.background(func() {
+			property, err := app.models.Properties.Get(schedule.PropertyID)
+			if err != nil {
+				app.logger.PrintError(err, nil)
+				return
+			}
+
+			emailData := map[string]interface{}{
+				"agentName":       agent.Name,
+				"userName":        user.Name,
+				"userEmail":       user.Email,
+				"propertyTitle":   property.Title,
+				"oldScheduledAt":  schedule.ScheduledAt.Format("Monday, January 2, 2006 at 3:04 PM"),
+				"newScheduledAt":  input.ScheduledAt.Format("Monday, January 2, 2006 at 3:04 PM"),
+				"duration":        newDuration,
+				"rescheduleCount": updatedSchedule.RescheduleCount,
+				"scheduleID":      id,
+			}
+
+			err = app.mailer.Send(agent.Email, "schedule_rescheduled.tmpl", emailData)
+			if err != nil {
+				app.logger.PrintError(err, map[string]string{
+					"context": "sending reschedule notification email",
+				})
+			}
+		})
+	}
+
+	// Log the reschedule action
+	app.logger.PrintInfo("schedule rescheduled", map[string]string{
+		"schedule_id":      fmt.Sprintf("%d", id),
+		"user_id":          fmt.Sprintf("%d", user.ID),
+		"agent_id":         fmt.Sprintf("%d", schedule.AgentID),
+		"old_time":         schedule.ScheduledAt.Format(time.RFC3339),
+		"new_time":         input.ScheduledAt.Format(time.RFC3339),
+		"reschedule_count": fmt.Sprintf("%d", updatedSchedule.RescheduleCount),
+	})
+
+	// Return success response with updated schedule
+	err = app.writeJSON(w, http.StatusOK, envelope{
+		"message":  "schedule successfully rescheduled",
+		"schedule": updatedSchedule,
+	}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}

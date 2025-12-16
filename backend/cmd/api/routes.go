@@ -85,6 +85,7 @@ func (app *application) routes() http.Handler {
 	// User schedules (viewings and schedules are the same thing)
 	router.HandlerFunc(http.MethodGet, "/v1/users/me/schedules", app.requireAuthenticatedUser(app.listUserSchedulesHandler))
 	router.HandlerFunc(http.MethodGet, "/v1/users/me/schedules/:id", app.requireAuthenticatedUser(app.getUserScheduleHandler))
+	router.HandlerFunc(http.MethodPatch, "/v1/users/me/schedules/:id", app.requireAuthenticatedUser(app.rescheduleUserScheduleHandler))
 	router.HandlerFunc(http.MethodDelete, "/v1/users/me/schedules/:id", app.requireAuthenticatedUser(app.cancelUserScheduleHandler))
 
 	// User inquiries
@@ -97,15 +98,14 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodPut, "/v1/users/activated", app.activateUserHandler)
 	router.HandlerFunc(http.MethodPut, "/v1/users/password", app.updateUserPasswordHandler)
 
-	// Token management - static routes BEFORE any wildcard routes
+	// =============================================================================
+	// TOKEN MANAGEMENT
+	// =============================================================================
 	router.HandlerFunc(http.MethodPost, "/v1/tokens/authentication", app.createAuthenticationTokenHandler)
 	router.HandlerFunc(http.MethodPost, "/v1/tokens/activation", app.createActivationTokenHandler)
 	router.HandlerFunc(http.MethodPost, "/v1/tokens/password-reset", app.createPasswordResetTokenHandler)
 	router.HandlerFunc(http.MethodPost, "/v1/tokens/revoke", app.requireAuthenticatedUser(app.revokeAuthenticationTokenHandler))
 	router.HandlerFunc(http.MethodPost, "/v1/tokens/revoke-all", app.requireAuthenticatedUser(app.revokeAllTokensHandler))
-
-	// Admin user management - wildcard route AFTER all static /v1/users/* routes
-	router.HandlerFunc(http.MethodPatch, "/v1/users/:id/role", app.requirePermission("users:manage", app.updateUserRoleHandler))
 
 	// =============================================================================
 	// AGENT ROUTES
@@ -156,6 +156,7 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodGet, "/v1/admin/users", app.requireAdminRole(app.listAllUsersHandler))
 	router.HandlerFunc(http.MethodGet, "/v1/admin/users/:id", app.requireAdminRole(app.viewUserHandler))
 	router.HandlerFunc(http.MethodPatch, "/v1/admin/users/:id", app.requireAdminRole(app.updateUserHandler))
+	router.HandlerFunc(http.MethodPatch, "/v1/admin/users/:id/role", app.requirePermission("users:manage", app.updateUserRoleHandler))
 	router.HandlerFunc(http.MethodDelete, "/v1/admin/users/:id", app.requireAdminRole(app.deleteUserHandler))
 
 	// Admin agent management

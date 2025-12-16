@@ -1,0 +1,73 @@
+{{define "subject"}}Property Viewing Rescheduled{{end}}
+
+{{define "plainBody"}}
+Hi {{.agentName}},
+
+A property viewing has been rescheduled by {{.userName}}.
+
+Property: {{.propertyTitle}}
+
+Schedule Details:
+- Previous Time: {{.oldScheduledAt}}
+- New Time: {{.newScheduledAt}}
+- Duration: {{.duration}} minutes
+- Reschedule Count: {{.rescheduleCount}}
+
+User Contact:
+- Name: {{.userName}}
+- Email: {{.userEmail}}
+
+Please confirm the new time or contact the user if there are any issues.
+
+View full details in your agent dashboard.
+
+Thanks,
+The PropertyOwn Team
+{{end}}
+
+{{define "htmlBody"}}
+<!doctype html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width" />
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+</head>
+<body>
+    <p>Hi {{.agentName}},</p>
+    <p>A property viewing has been <strong>rescheduled</strong> by {{.userName}}.</p>
+    
+    <h3>Property: {{.propertyTitle}}</h3>
+    
+    <table style="margin: 20px 0;">
+        <tr>
+            <td style="padding: 5px;"><strong>Previous Time:</strong></td>
+            <td style="padding: 5px; text-decoration: line-through; color: #999;">{{.oldScheduledAt}}</td>
+        </tr>
+        <tr>
+            <td style="padding: 5px;"><strong>New Time:</strong></td>
+            <td style="padding: 5px; color: #27ae60; font-weight: bold;">{{.newScheduledAt}}</td>
+        </tr>
+        <tr>
+            <td style="padding: 5px;"><strong>Duration:</strong></td>
+            <td style="padding: 5px;">{{.duration}} minutes</td>
+        </tr>
+        <tr>
+            <td style="padding: 5px;"><strong>Reschedule Count:</strong></td>
+            <td style="padding: 5px;">{{.rescheduleCount}}</td>
+        </tr>
+    </table>
+    
+    <h4>User Contact:</h4>
+    <ul>
+        <li><strong>Name:</strong> {{.userName}}</li>
+        <li><strong>Email:</strong> {{.userEmail}}</li>
+    </ul>
+    
+    <p>Please confirm the new time or contact the user if there are any issues.</p>
+    
+    <p>View full details in your agent dashboard.</p>
+    
+    <p>Thanks,<br>The PropertyOwn Team</p>
+</body>
+</html>
+{{end}}
