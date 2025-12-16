@@ -21,14 +21,15 @@ type UserModel struct {
 
 // User represents an individual user
 type User struct {
-	ID        int64     `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	Name      string    `json:"name"`
-	Email     string    `json:"email"`
-	Password  password  `json:"-"`
-	Activated bool      `json:"activated"`
-	Role      string    `json:"role"` // NEW: user role
-	Version   int       `json:"-"`
+	ID           int64     `json:"id"`
+	CreatedAt    time.Time `json:"created_at"`
+	Name         string    `json:"name"`
+	Email        string    `json:"email"`
+	Password     password  `json:"-"`
+	Activated    bool      `json:"activated"`
+	Role         string    `json:"role"`
+	ProfilePhoto string    `json:"profile_photo,omitempty"`
+	Version      int       `json:"-"`
 }
 
 // password holds the plaintext(optional) and hashed password
@@ -134,7 +135,7 @@ RETURNING id, created_at, version`
 func (m UserModel) GetByID(id int64) (*User, error) {
 	//SQL query to fetch user fields
 	query := `
-SELECT id, created_at, name, email, password_hash, activated, role, version
+SELECT id, created_at, name, email, password_hash, activated, role, profile_photo, version
 FROM users
 WHERE id = $1`
 
@@ -153,6 +154,7 @@ WHERE id = $1`
 		&user.Password.hash,
 		&user.Activated,
 		&user.Role,
+		&user.ProfilePhoto,
 		&user.Version,
 	)
 

@@ -141,6 +141,9 @@ func main() {
 		),
 	}
 
+	//Start background jobs
+	app.startBackgroundJobs()
+
 	//Start the server
 	err = app.serve()
 	if err != nil {

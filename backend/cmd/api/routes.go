@@ -23,7 +23,7 @@ func (app *application) routes() http.Handler {
 	// =============================================================================
 	// PROPERTIES ENDPOINTS
 	// =============================================================================
-	router.HandlerFunc(http.MethodGet, "/v1/properties", app.requirePermission("properties:read", app.listPropertiesHandler))
+	router.HandlerFunc(http.MethodGet, "/v1/properties", app.listPropertiesHandler)
 	router.HandlerFunc(http.MethodPost, "/v1/properties", app.requirePermission("properties:write", app.createPropertyHandler))
 
 	// Static routes BEFORE wildcards
@@ -55,7 +55,7 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodPost, "/v1/property/:id/reviews", app.requirePermission("reviews:write", app.createReviewHandler))
 
 	// Base property routes (AFTER all sub-routes)
-	router.HandlerFunc(http.MethodGet, "/v1/property/:id", app.requirePermission("properties:read", app.showPropertyHandler))
+	router.HandlerFunc(http.MethodGet, "/v1/property/:id", app.showPropertyHandler)
 	router.HandlerFunc(http.MethodPatch, "/v1/property/:id", app.requirePermission("properties:write", app.updatePropertyHandler))
 	router.HandlerFunc(http.MethodDelete, "/v1/property/:id", app.requirePermission("properties:delete", app.deletePropertyHandler))
 
@@ -77,6 +77,11 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodPost, "/v1/users/me/favourite/:id", app.requireAuthenticatedUser(app.addFavouriteHandler))
 	router.HandlerFunc(http.MethodDelete, "/v1/users/me/favourite/:id", app.requireAuthenticatedUser(app.removeFavouriteHandler))
 
+	// User profile photo
+	router.HandlerFunc(http.MethodPost, "/v1/users/me/photo", app.requireAuthenticatedUser(app.uploadProfilePhotoHandler))
+	router.HandlerFunc(http.MethodGet, "/v1/users/me/photo", app.requireAuthenticatedUser(app.getProfilePhotoHandler))
+	router.HandlerFunc(http.MethodDelete, "/v1/users/me/photo", app.requireAuthenticatedUser(app.deleteProfilePhotoHandler))
+
 	// User schedules (viewings and schedules are the same thing)
 	router.HandlerFunc(http.MethodGet, "/v1/users/me/schedules", app.requireAuthenticatedUser(app.listUserSchedulesHandler))
 	router.HandlerFunc(http.MethodGet, "/v1/users/me/schedules/:id", app.requireAuthenticatedUser(app.getUserScheduleHandler))
@@ -91,11 +96,15 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodPost, "/v1/users", app.registerUserHandler)
 	router.HandlerFunc(http.MethodPut, "/v1/users/activated", app.activateUserHandler)
 	router.HandlerFunc(http.MethodPut, "/v1/users/password", app.updateUserPasswordHandler)
+
+	// Token management - static routes BEFORE any wildcard routes
 	router.HandlerFunc(http.MethodPost, "/v1/tokens/authentication", app.createAuthenticationTokenHandler)
 	router.HandlerFunc(http.MethodPost, "/v1/tokens/activation", app.createActivationTokenHandler)
 	router.HandlerFunc(http.MethodPost, "/v1/tokens/password-reset", app.createPasswordResetTokenHandler)
+	router.HandlerFunc(http.MethodPost, "/v1/tokens/revoke", app.requireAuthenticatedUser(app.revokeAuthenticationTokenHandler))
+	router.HandlerFunc(http.MethodPost, "/v1/tokens/revoke-all", app.requireAuthenticatedUser(app.revokeAllTokensHandler))
 
-	// Admin user management
+	// Admin user management - wildcard route AFTER all static /v1/users/* routes
 	router.HandlerFunc(http.MethodPatch, "/v1/users/:id/role", app.requirePermission("users:manage", app.updateUserRoleHandler))
 
 	// =============================================================================
@@ -107,7 +116,7 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodGet, "/v1/agents/me/inquiries/:id", app.requireAuthenticatedUser(app.getAgentInquiryHandler))
 	router.HandlerFunc(http.MethodPatch, "/v1/agents/me/inquiries/:id", app.requireAuthenticatedUser(app.updateInquiryHandler))
 
-	// Agent schedules - static routes first (FIXED: changed from requireAgentRole to requireAuthenticatedUser)
+	// Agent schedules - static routes first
 	router.HandlerFunc(http.MethodGet, "/v1/agents/me/schedule-stats", app.requireAuthenticatedUser(app.getAgentScheduleStatsHandler))
 	router.HandlerFunc(http.MethodGet, "/v1/agents/me/schedules", app.requireAuthenticatedUser(app.listAgentSchedulesHandler))
 	router.HandlerFunc(http.MethodGet, "/v1/agents/me/schedules/:id", app.requireAuthenticatedUser(app.getAgentScheduleHandler))
@@ -167,6 +176,9 @@ func (app *application) routes() http.Handler {
 	// DEBUG/METRICS
 	// =============================================================================
 	router.Handler(http.MethodGet, "/debug/vars", expvar.Handler())
+
+	// Serve static files (profile photos)
+	router.ServeFiles("/uploads/*filepath", http.Dir("./uploads"))
 
 	return app.metrics(app.recoverPanic(app.enableCORS(app.rateLimit(app.authenticate(router)))))
 }

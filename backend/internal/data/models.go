@@ -17,34 +17,36 @@ var (
 
 // Models wraps all model types
 type Models struct {
-	Properties  PropertyModel
-	Users       UserModel
-	Tokens      TokenModel
-	Permissions PermissionModel
-	Reviews     ReviewModel
-	Payments    PaymentModel
-	Agents      AgentModel
-	Admin       AdminModel
-	Media       MediaModel
-	Inquiries   InquiryModel
-	Favourites  FavouriteModel
-	Schedules   ScheduleModel
+	Properties    PropertyModel
+	Users         UserModel
+	Tokens        TokenModel
+	RevokedTokens RevokedTokenModel
+	Permissions   PermissionModel
+	Reviews       ReviewModel
+	Payments      PaymentModel
+	Agents        AgentModel
+	Admin         AdminModel
+	Media         MediaModel
+	Inquiries     InquiryModel
+	Favourites    FavouriteModel
+	Schedules     ScheduleModel
 }
 
 // NewModels initializes and returns a Models struct with the given DB connection
 func NewModels(db *sql.DB) Models {
 	return Models{
-		Properties:  PropertyModel{DB: db},
-		Users:       UserModel{DB: db},
-		Tokens:      TokenModel{DB: db},
-		Permissions: PermissionModel{DB: db},
-		Reviews:     ReviewModel{DB: db},
-		Payments:    PaymentModel{DB: db},
-		Agents:      AgentModel{DB: db},
-		Admin:       AdminModel{DB: db},
-		Media:       MediaModel{DB: db},
-		Inquiries:   InquiryModel{DB: db},
-		Favourites:  FavouriteModel{DB: db},
-		Schedules:   ScheduleModel{DB: db},
+		Properties:    PropertyModel{DB: db},
+		Users:         UserModel{DB: db},
+		Tokens:        TokenModel{DB: db},
+		RevokedTokens: RevokedTokenModel{DB: db},
+		Permissions:   PermissionModel{DB: db},
+		Reviews:       ReviewModel{DB: db},
+		Payments:      PaymentModel{DB: db},
+		Agents:        AgentModel{DB: db},
+		Admin:         AdminModel{DB: db},
+		Media:         MediaModel{DB: db},
+		Inquiries:     InquiryModel{DB: db},
+		Favourites:    FavouriteModel{DB: db},
+		Schedules:     ScheduleModel{DB: db},
 	}
 }

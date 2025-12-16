@@ -59,12 +59,12 @@ func (app *application) serve() error {
 		"env":  app.config.env,
 	})
 
-	//TLS cert and keys files
-	certFile := "tls/cert.pem"
-	keyFile := "tls/key.pem"
+	// //TLS cert and keys files
+	// certFile := "tls/cert.pem"
+	// keyFile := "tls/key.pem"
 
 	// Ignore expected server-closed error during shutdown.
-	err := srv.ListenAndServeTLS(certFile, keyFile)
+	err := srv.ListenAndServe()
 	if !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
