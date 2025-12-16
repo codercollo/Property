@@ -128,6 +128,11 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodDelete, "/v1/agents/me", app.requireAuthenticatedUser(app.deleteAgentAccountHandler))
 	router.HandlerFunc(http.MethodPatch, "/v1/agents/me/password", app.requireAuthenticatedUser(app.changeAgentPasswordHandler))
 
+	// Agent profile photo
+	router.HandlerFunc(http.MethodPost, "/v1/agents/me/photo", app.requireAuthenticatedUser(app.uploadAgentProfilePhotoHandler))
+	router.HandlerFunc(http.MethodGet, "/v1/agents/me/photo", app.requireAuthenticatedUser(app.getAgentProfilePhotoHandler))
+	router.HandlerFunc(http.MethodDelete, "/v1/agents/me/photo", app.requireAuthenticatedUser(app.deleteAgentProfilePhotoHandler))
+
 	// Agent properties - static routes first
 	router.HandlerFunc(http.MethodGet, "/v1/agents/me/property-stats", app.requireAuthenticatedUser(app.getAgentPropertyStatsHandler))
 	router.HandlerFunc(http.MethodGet, "/v1/agents/me/properties", app.requireAuthenticatedUser(app.listAgentPropertiesHandler))
