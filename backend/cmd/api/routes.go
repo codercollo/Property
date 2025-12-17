@@ -108,6 +108,18 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodPost, "/v1/tokens/revoke-all", app.requireAuthenticatedUser(app.revokeAllTokensHandler))
 
 	// =============================================================================
+	// PAYMENT ROUTES
+	// =============================================================================
+	// Static payment routes BEFORE wildcard routes
+	router.HandlerFunc(http.MethodPost, "/v1/payments/mpesa/callback", app.mpesaCallbackHandler)
+
+	// General payment routes
+	router.HandlerFunc(http.MethodPost, "/v1/payments", app.requireAuthenticatedUser(app.createPaymentHandler))
+
+	// Payment status with wildcard (AFTER static routes)
+	router.HandlerFunc(http.MethodGet, "/v1/payments/:id/status", app.requireAuthenticatedUser(app.queryPaymentStatusHandler))
+
+	// =============================================================================
 	// AGENT ROUTES
 	// =============================================================================
 	// Agent inquiries - static routes first
@@ -142,7 +154,7 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodGet, "/v1/agents/me/reviews/pending", app.requireAuthenticatedUser(app.listAgentPendingReviewsHandler))
 	router.HandlerFunc(http.MethodGet, "/v1/agents/me/reviews", app.requireAuthenticatedUser(app.listAgentReviewsHandler))
 
-	// Agent payments
+	// Agent payments - static routes first
 	router.HandlerFunc(http.MethodGet, "/v1/agents/me/payments", app.requireAuthenticatedUser(app.listPaymentHistoryHandler))
 	router.HandlerFunc(http.MethodGet, "/v1/agents/me/payments/:id", app.requireAuthenticatedUser(app.getPaymentStatusHandler))
 

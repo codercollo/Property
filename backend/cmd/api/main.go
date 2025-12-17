@@ -53,6 +53,14 @@ type config struct {
 	jwt struct {
 		secret string
 	}
+	mpesa struct {
+		consumerKey    string
+		consumerSecret string
+		passkey        string
+		shortCode      string
+		environment    string
+	}
+	baseURL string
 }
 
 // Application dependencies
@@ -88,6 +96,12 @@ func main() {
 		return nil
 	})
 	flag.StringVar(&cfg.jwt.secret, "jwt-secret", "", "JWT secret")
+	flag.StringVar(&cfg.mpesa.consumerKey, "mpesa-consumer-key", "", "M-Pesa consumer key")
+	flag.StringVar(&cfg.mpesa.consumerSecret, "mpesa-consumer-secret", "", "M-Pesa consumer secret")
+	flag.StringVar(&cfg.mpesa.passkey, "mpesa-passkey", "", "M-Pesa passkey")
+	flag.StringVar(&cfg.mpesa.shortCode, "mpesa-shortcode", "", "M-Pesa business short code")
+	flag.StringVar(&cfg.mpesa.environment, "mpesa-env", "sandbox", "M-Pesa environment (sandbox|production)")
+	flag.StringVar(&cfg.baseURL, "base-url", "http://localhost:4000", "Base URL for callbacks")
 
 	// Create a new version boolean flag with the default value of false.
 	displayVersion := flag.Bool("version", false, "Display version and exit")

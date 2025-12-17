@@ -360,6 +360,8 @@ func (app *application) listAgentPendingReviewsHandler(w http.ResponseWriter, r 
 // =============================================================================
 
 // createFeaturePaymentHandler processes payment to feature a property
+// DEPRECATED: This endpoint is kept for backward compatibility
+// Use POST /v1/payments instead for new implementations
 func (app *application) createFeaturePaymentHandler(w http.ResponseWriter, r *http.Request) {
 	user := app.contextGetUser(r)
 
@@ -410,12 +412,23 @@ func (app *application) createFeaturePaymentHandler(w http.ResponseWriter, r *ht
 		return
 	}
 
-	payment, err := app.models.Payments.Create(user.ID, property.ID, input.Amount, input.PaymentMethod)
+	// Create payment record using the new structure
+	payment := &data.Payment{
+		AgentID:         user.ID,
+		PropertyID:      property.ID,
+		Amount:          input.Amount,
+		PaymentMethod:   input.PaymentMethod,
+		PaymentProvider: "bank", // Default to bank for this legacy endpoint
+		Status:          "completed",
+	}
+
+	err = app.models.Payments.Create(payment)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
 
+	// Feature the property immediately for this legacy endpoint
 	err = app.models.Properties.Feature(id)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)

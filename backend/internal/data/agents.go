@@ -28,10 +28,10 @@ func (m AgentModel) GetDashboardStats(agentID int64) (*DashboardStats, error) {
 			COUNT(DISTINCT CASE WHEN p.featured_at IS NOT NULL THEN p.id END) as featured_count,
 			COUNT(DISTINCT r.id) as reviews_count,
 			COALESCE(AVG(r.rating), 0) as average_rating,
-			COALESCE(SUM(pay.amount), 0) as total_revenue,
+			COALESCE(SUM(CASE WHEN pay.status = 'completed' THEN pay.amount ELSE 0 END), 0) as total_revenue,
 			COUNT(DISTINCT CASE WHEN r.status = 'pending' THEN r.id END) as pending_reviews
 		FROM properties p
-		LEFT JOIN reviews r ON p.id = r.property_id AND r.status = 'approved'
+		LEFT JOIN reviews r ON p.id = r.property_id AND r.status IN ('approved', 'pending')
 		LEFT JOIN payments pay ON p.agent_id = pay.agent_id
 		WHERE p.agent_id = $1`
 
@@ -39,7 +39,6 @@ func (m AgentModel) GetDashboardStats(agentID int64) (*DashboardStats, error) {
 	defer cancel()
 
 	var stats DashboardStats
-
 	err := m.DB.QueryRowContext(ctx, query, agentID).Scan(
 		&stats.PropertiesCount,
 		&stats.FeaturedCount,
