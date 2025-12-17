@@ -58,7 +58,7 @@ func (m AdminModel) GetPlatformStats() (*PlatformStats, error) {
 			(SELECT COUNT(*) FROM users WHERE role = 'agent') as total_agents,
 			(SELECT COUNT(*) FROM properties) as total_properties,
 			(SELECT COUNT(*) FROM reviews WHERE status = 'approved') as total_reviews,
-			(SELECT COALESCE(SUM(amount), 0) FROM payments) as total_revenue,
+			(SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status = 'completed') as total_revenue,
 			(SELECT COUNT(*) FROM users WHERE role = 'agent' AND activated = true) as active_agents,
 			(SELECT COUNT(*) FROM properties WHERE featured_at IS NOT NULL) as featured_listings,
 			(SELECT COUNT(*) FROM reviews WHERE status = 'pending') as pending_reviews,
@@ -158,7 +158,7 @@ func (m AdminModel) GetGrowthMetrics(period string) (*GrowthMetrics, error) {
 	revenueQuery := `
 		SELECT DATE(created_at) as date, SUM(amount) as amount
 		FROM payments
-		WHERE created_at >= NOW() - INTERVAL '%d days'
+		WHERE status = 'completed' AND created_at >= NOW() - INTERVAL '%d days'
 		GROUP BY DATE(created_at)
 		ORDER BY date
 	`
@@ -273,6 +273,44 @@ func (m UserModel) GetAll(role, search string, filters Filters) ([]*User, Metada
 	return users, metadata, nil
 }
 
+// GetByID retrieves a user by their ID (needed for admin operations)
+func (m UserModel) GetByID(id int64) (*User, error) {
+	if id < 1 {
+		return nil, ErrUserNotFound
+	}
+
+	query := `
+		SELECT id, created_at, name, email, activated, role, version
+		FROM users
+		WHERE id = $1`
+
+	var user User
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	err := m.DB.QueryRowContext(ctx, query, id).Scan(
+		&user.ID,
+		&user.CreatedAt,
+		&user.Name,
+		&user.Email,
+		&user.Activated,
+		&user.Role,
+		&user.Version,
+	)
+
+	if err != nil {
+		switch {
+		case err == sql.ErrNoRows:
+			return nil, ErrUserNotFound
+		default:
+			return nil, err
+		}
+	}
+
+	return &user, nil
+}
+
 // Delete removes a user from the database
 func (m UserModel) Delete(id int64) error {
 	if id < 1 {
@@ -307,15 +345,18 @@ func (m UserModel) Delete(id int64) error {
 
 // AgentProfile represents an agent with additional profile information
 type AgentProfile struct {
-	ID              int64     `json:"id"`
-	Name            string    `json:"name"`
-	Email           string    `json:"email"`
-	Activated       bool      `json:"activated"`
-	CreatedAt       time.Time `json:"created_at"`
-	Verified        bool      `json:"verified"`
-	Status          string    `json:"status"`
-	PropertiesCount int       `json:"properties_count"`
-	TotalRevenue    float64   `json:"total_revenue"`
+	ID              int64      `json:"id"`
+	Name            string     `json:"name"`
+	Email           string     `json:"email"`
+	Activated       bool       `json:"activated"`
+	CreatedAt       time.Time  `json:"created_at"`
+	Verified        bool       `json:"verified"`
+	Status          string     `json:"status"`
+	PropertiesCount int        `json:"properties_count"`
+	TotalRevenue    float64    `json:"total_revenue"`
+	RejectionReason *string    `json:"rejection_reason,omitempty"`
+	RejectedAt      *time.Time `json:"rejected_at,omitempty"`
+	ProfilePhoto    string     `json:"profile_photo,omitempty"`
 }
 
 // GetAll retrieves all agents with filtering
@@ -326,7 +367,10 @@ func (m AgentModel) GetAll(status, search string, filters Filters) ([]*AgentProf
 		       COALESCE(ap.verified, false) as verified,
 		       COALESCE(ap.status, 'active') as status,
 		       COUNT(DISTINCT p.id) as properties_count,
-		       COALESCE(SUM(pay.amount), 0) as total_revenue
+		       COALESCE(SUM(CASE WHEN pay.status = 'completed' THEN pay.amount ELSE 0 END), 0) as total_revenue,
+		       ap.rejection_reason,
+		       ap.rejected_at,
+		       COALESCE(u.profile_photo, '') as profile_photo
 		FROM users u
 		LEFT JOIN agent_profiles ap ON u.id = ap.user_id
 		LEFT JOIN properties p ON u.id = p.agent_id
@@ -334,7 +378,7 @@ func (m AgentModel) GetAll(status, search string, filters Filters) ([]*AgentProf
 		WHERE u.role = 'agent'
 		AND (ap.status = $1 OR $1 = '')
 		AND (u.name ILIKE '%%' || $2 || '%%' OR u.email ILIKE '%%' || $2 || '%%' OR $2 = '')
-		GROUP BY u.id, u.name, u.email, u.activated, u.created_at, ap.verified, ap.status
+		GROUP BY u.id, u.name, u.email, u.activated, u.created_at, ap.verified, ap.status, ap.rejection_reason, ap.rejected_at, u.profile_photo
 		ORDER BY %s %s, u.id ASC
 		LIMIT $3 OFFSET $4
 	`, filters.sortColumn(), filters.sortDirection())
@@ -366,7 +410,11 @@ func (m AgentModel) GetAll(status, search string, filters Filters) ([]*AgentProf
 			&agent.Status,
 			&agent.PropertiesCount,
 			&agent.TotalRevenue,
+			&agent.RejectionReason,
+			&agent.RejectedAt,
+			&agent.ProfilePhoto,
 		)
+
 		if err != nil {
 			return nil, Metadata{}, err
 		}
@@ -440,6 +488,39 @@ func (m AgentModel) Activate(userID int64) error {
 	defer cancel()
 
 	result, err := m.DB.ExecContext(ctx, query, userID)
+	if err != nil {
+		return err
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rows == 0 {
+		return ErrUserNotFound
+	}
+
+	return nil
+}
+
+// RejectVerification marks an agent verification as rejected with a reason
+func (m AgentModel) RejectVerification(userID int64, reason string) error {
+	query := `
+		INSERT INTO agent_profiles (user_id, verified, status, rejection_reason, rejected_at)
+		VALUES ($1, false, 'rejected', $2, NOW())
+		ON CONFLICT (user_id) 
+		DO UPDATE SET 
+			verified = false, 
+			status = 'rejected',
+			rejection_reason = $2,
+			rejected_at = NOW()
+	`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	result, err := m.DB.ExecContext(ctx, query, userID, reason)
 	if err != nil {
 		return err
 	}

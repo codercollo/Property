@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/codercollo/property/backend/internal/data"
@@ -368,6 +369,77 @@ func (app *application) approveAgentVerificationHandler(w http.ResponseWriter, r
 	}
 
 	err = app.writeJSON(w, http.StatusOK, envelope{"agent": agent}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+// rejectAgentVerificationHandler rejects an agent verification request with a reason
+func (app *application) rejectAgentVerificationHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := app.readIDParam(r)
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	var input struct {
+		Reason string `json:"reason"`
+	}
+
+	err = app.readJSON(w, r, &input)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	// Validate the rejection reason
+	v := validator.New()
+	v.Check(input.Reason != "", "reason", "must be provided")
+	v.Check(len(input.Reason) >= 10, "reason", "must be at least 10 characters long")
+	v.Check(len(input.Reason) <= 500, "reason", "must not exceed 500 characters")
+
+	if !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	err = app.models.Agents.RejectVerification(id, input.Reason)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrUserNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	// Fetch the updated agent details
+	agent, err := app.models.Users.GetByID(id)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	// Send notification email to agent about rejection
+	app.background(func() {
+		emailData := map[string]interface{}{
+			"agentName": agent.Name,
+			"reason":    input.Reason,
+		}
+
+		err := app.mailer.Send(agent.Email, "agent_verification_rejected.tmpl", emailData)
+		if err != nil {
+			app.logger.PrintError(err, map[string]string{
+				"agent_id": fmt.Sprintf("%d", agent.ID),
+			})
+		}
+	})
+
+	err = app.writeJSON(w, http.StatusOK, envelope{
+		"message": "agent verification rejected",
+		"agent":   agent,
+	}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}

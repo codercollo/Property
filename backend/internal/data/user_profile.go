@@ -173,7 +173,7 @@ func (m UserModel) DeleteUserProfilePhoto(userID int64) error {
 	query := `
 		UPDATE users
 		SET profile_photo = NULL, version = version + 1
-		WHERE id = $2`
+		WHERE id = $1`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()

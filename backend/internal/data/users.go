@@ -131,47 +131,6 @@ RETURNING id, created_at, version`
 	return nil
 }
 
-// GetByID fetches a user by their ID
-func (m UserModel) GetByID(id int64) (*User, error) {
-	//SQL query to fetch user fields
-	query := `
-SELECT id, created_at, name, email, password_hash, activated, role, profile_photo, version
-FROM users
-WHERE id = $1`
-
-	var user User
-
-	//Create a 3-second timeout context
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
-	//Execute query and scan the result into the user struct
-	err := m.DB.QueryRowContext(ctx, query, id).Scan(
-		&user.ID,
-		&user.CreatedAt,
-		&user.Name,
-		&user.Email,
-		&user.Password.hash,
-		&user.Activated,
-		&user.Role,
-		&user.ProfilePhoto,
-		&user.Version,
-	)
-
-	//Handle query errors
-	if err != nil {
-		switch {
-		case errors.Is(err, sql.ErrNoRows):
-			return nil, ErrUserNotFound
-		default:
-			return nil, err
-		}
-	}
-
-	//Return the fetched user
-	return &user, nil
-}
-
 // GetByEmail fetches a user by email
 func (m UserModel) GetByEmail(email string) (*User, error) {
 	query := `

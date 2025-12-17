@@ -179,6 +179,7 @@ func (app *application) routes() http.Handler {
 	// Admin agent management
 	router.HandlerFunc(http.MethodGet, "/v1/admin/agents", app.requireAdminRole(app.listAllAgentsHandler))
 	router.HandlerFunc(http.MethodPost, "/v1/admin/agents/:id/verify", app.requireAdminRole(app.approveAgentVerificationHandler))
+	router.HandlerFunc(http.MethodPost, "/v1/admin/agents/:id/reject", app.requireAdminRole(app.rejectAgentVerificationHandler))
 	router.HandlerFunc(http.MethodPost, "/v1/admin/agents/:id/suspend", app.requireAdminRole(app.suspendAgentHandler))
 	router.HandlerFunc(http.MethodPost, "/v1/admin/agents/:id/activate", app.requireAdminRole(app.activateAgentHandler))
 
